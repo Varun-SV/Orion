@@ -20,19 +20,27 @@
 
 <table>
   <tr>
-    <td align="center"><b>First-launch wizard</b></td>
+    <td align="center"><b>Setup wizard — Welcome</b></td>
+    <td align="center"><b>Setup wizard — Categories</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/00_wizard.png" alt="Setup wizard welcome" width="400"/></td>
+    <td><img src="screenshots/00b_wizard_categories.png" alt="Setup wizard categories" width="400"/></td>
+  </tr>
+  <tr>
     <td align="center"><b>Dashboard</b></td>
-  </tr>
-  <tr>
-    <td><img src="screenshots/00_wizard.png" alt="Setup wizard" width="400"/></td>
-    <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
-  </tr>
-  <tr>
     <td align="center"><b>Rename panel</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
+    <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Settings — API Keys (OS keychain)</b></td>
     <td align="center"><b>Activity log</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
+    <td><img src="screenshots/04_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
     <td><img src="screenshots/05_log.png" alt="Activity log" width="400"/></td>
   </tr>
 </table>
@@ -87,6 +95,7 @@ It handles the full pipeline: **scan → identify → rename → move**, with po
 | requests | 2.32.0 | API HTTP calls |
 | guessit | 3.8.0 | Filename parsing |
 | Pillow | 10.3.0 | Image handling |
+| keyring | 25.0.0 | OS keychain storage for API keys |
 
 ---
 
@@ -134,7 +143,15 @@ A setup wizard runs automatically the first time you open Orion:
 | **AniList** | No | Always active, no key needed |
 | **AniDB** | Optional | Register a client at [anidb.net/software/add](https://anidb.net/software/add) — used as episode-title fallback |
 
-> **Keys are session-only.** They are held in memory and cleared when Orion closes. You will need to re-enter them each launch.
+Keys are stored in the **OS keychain** and loaded automatically on every launch — you only need to enter them once:
+
+| OS | Backend |
+|---|---|
+| Windows | Windows Credential Manager |
+| macOS | Keychain Services |
+| Linux | Secret Service API (GNOME Keyring, KDE Wallet) |
+
+Use **Settings → API Keys → Clear** to remove a stored key. If no keyring backend is available (e.g. a headless Linux server), Orion falls back to session-only storage and displays a warning banner.
 
 ---
 
@@ -239,8 +256,8 @@ Orion/
 
 ## Known limitations (beta)
 
-- **API keys re-entered each launch** — by design (keys are never persisted to disk).
 - **AniDB requires client registration** — unregistered clients are aggressively rate-limited. Register at [anidb.net/software/add](https://anidb.net/software/add) and enter your client ID on the API keys screen.
+- **Linux without a keyring daemon** — headless or minimal Linux installs may have no Secret Service provider. Install GNOME Keyring (`gnome-keyring`) or KWallet and ensure a D-Bus session is running; without one, keys fall back to session-only.
 - **No undo** — moves are immediate; verify your destination path in Settings before running.
 - **Same-drive detection is drive-letter based** — on Linux/macOS all paths share an empty drive string, so same-drive fast-path is always taken.
 

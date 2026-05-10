@@ -1,10 +1,22 @@
 """
-App config — paths, first-launch detection, session-only API keys.
-API keys are NEVER written to disk (in-app session only).
+App config — paths, first-launch detection, OS-keychain API key storage.
+API keys are stored in the OS keychain (Windows Credential Manager, macOS
+Keychain, Linux Secret Service via libsecret). They persist until the user
+explicitly clears them from Settings → API Keys.
+Falls back to session-only storage if no keyring backend is available.
 """
 from __future__ import annotations
 import os, json
 from pathlib import Path
+
+try:
+    import keyring
+    import keyring.errors
+    _KEYRING_OK = True
+except Exception:
+    _KEYRING_OK = False
+
+_KR_SERVICE = "Orion"
 
 
 class Config:
@@ -31,17 +43,48 @@ class Config:
     def mark_launched(self) -> None:
         self._set("launched", True)
 
-    # Session-only API keys — never persisted
+    # ── API keys — OS keychain with in-memory cache ──────────────────────
     def set_api_key(self, service: str, key: str) -> None:
-        self._api_keys[service] = key.strip()
+        key = key.strip()
+        self._api_keys[service] = key
+        if _KEYRING_OK:
+            try:
+                if key:
+                    keyring.set_password(_KR_SERVICE, service, key)
+                else:
+                    keyring.delete_password(_KR_SERVICE, service)
+            except Exception:
+                pass
 
     def get_api_key(self, service: str) -> str:
+        if service not in self._api_keys:
+            if _KEYRING_OK:
+                try:
+                    val = keyring.get_password(_KR_SERVICE, service) or ""
+                    self._api_keys[service] = val
+                except Exception:
+                    self._api_keys[service] = ""
+            else:
+                self._api_keys[service] = ""
         return self._api_keys.get(service, "")
 
     def has_api_key(self, service: str) -> bool:
-        return bool(self._api_keys.get(service))
+        return bool(self.get_api_key(service))
 
-    # UI prefs (geometry, last panel index…)
+    def delete_api_key(self, service: str) -> None:
+        """Remove key from memory and OS keychain."""
+        self._api_keys.pop(service, None)
+        if _KEYRING_OK:
+            try:
+                keyring.delete_password(_KR_SERVICE, service)
+            except Exception:
+                pass
+
+    @staticmethod
+    def keyring_available() -> bool:
+        return _KEYRING_OK
+
+    # ── UI prefs (geometry, last panel index…) ───────────────────────────
     def save_geometry(self, key: str, data: dict) -> None:
         self._set(f"geo_{key}", data)
 

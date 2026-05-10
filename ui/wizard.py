@@ -251,10 +251,21 @@ class SetupWizard(QDialog):
         v.addWidget(self._heading("API keys",
             "Optional but recommended — enables poster thumbnails and accurate renaming. Keys are session-only and never saved to disk."))
 
-        warn = QLabel("⚠  Keys cleared when app closes. You will need to re-enter them each launch.")
+        if self._config.keyring_available():
+            info_text = ("🔒  Keys are stored securely in your OS keychain "
+                         "(Windows Credential Manager / macOS Keychain / Linux Secret Service) "
+                         "and will be loaded automatically on next launch.")
+            info_style = ("background:rgba(0,164,220,0.08);border:1px solid rgba(0,164,220,0.2);"
+                          "border-radius:6px;padding:8px 12px;color:#00a4dc;font-size:12px;")
+        else:
+            info_text = ("⚠  No OS keychain found — keys are session-only and will be "
+                         "cleared when Orion closes. Install a Secret Service provider "
+                         "(e.g. GNOME Keyring) to enable persistent storage.")
+            info_style = ("background:rgba(254,188,46,0.08);border:1px solid rgba(254,188,46,0.2);"
+                          "border-radius:6px;padding:8px 12px;color:#febc2e;font-size:12px;")
+        warn = QLabel(info_text)
         warn.setWordWrap(True)
-        warn.setStyleSheet("background:rgba(254,188,46,0.08);border:1px solid rgba(254,188,46,0.2);"
-                           "border-radius:6px;padding:8px 12px;color:#febc2e;font-size:12px;")
+        warn.setStyleSheet(info_style)
         v.addWidget(warn)
 
         # TMDb
@@ -327,6 +338,10 @@ class SetupWizard(QDialog):
         field = QLineEdit()
         field.setEchoMode(QLineEdit.EchoMode.Password)
         field.setPlaceholderText("Paste key here…")
+        # Pre-fill from keychain (no-op if nothing stored yet)
+        field.blockSignals(True)
+        field.setText(self._config.get_api_key(key))
+        field.blockSignals(False)
         field.textChanged.connect(lambda t, k=key: self._config.set_api_key(k, t))
         row.addWidget(field, 1)
         show = QPushButton("Show")
@@ -335,6 +350,12 @@ class SetupWizard(QDialog):
             QLineEdit.EchoMode.Normal if f.echoMode() == QLineEdit.EchoMode.Password
             else QLineEdit.EchoMode.Password))
         row.addWidget(show)
+        clear = QPushButton("Clear")
+        clear.setFixedWidth(60)
+        clear.setObjectName("btn_danger")
+        clear.clicked.connect(lambda _, k=key, f=field: (
+            self._config.delete_api_key(k), f.clear()))
+        row.addWidget(clear)
         v.addLayout(row)
         return card
 

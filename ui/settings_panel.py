@@ -209,11 +209,21 @@ class SettingsPanel(QWidget):
         v.setContentsMargins(16, 14, 16, 14)
         v.setSpacing(14)
 
-        warn = QLabel("⚠  API keys are session-only — cleared when Orion closes. Re-enter each launch.")
-        warn.setWordWrap(True)
-        warn.setStyleSheet("background:rgba(254,188,46,0.08);border:1px solid rgba(254,188,46,0.2);"
-                           "border-radius:6px;padding:8px 12px;color:#febc2e;font-size:12px;")
-        v.addWidget(warn)
+        if self._config.keyring_available():
+            banner_text  = ("🔒  Keys are stored securely in your OS keychain and loaded "
+                            "automatically on each launch. Use Clear to remove a stored key.")
+            banner_style = ("background:rgba(0,164,220,0.08);border:1px solid rgba(0,164,220,0.2);"
+                            "border-radius:6px;padding:8px 12px;color:#00a4dc;font-size:12px;")
+        else:
+            banner_text  = ("⚠  No OS keychain found — keys are session-only and will be "
+                            "cleared when Orion closes. Install a Secret Service provider "
+                            "(e.g. GNOME Keyring) to enable persistent storage.")
+            banner_style = ("background:rgba(254,188,46,0.08);border:1px solid rgba(254,188,46,0.2);"
+                            "border-radius:6px;padding:8px 12px;color:#febc2e;font-size:12px;")
+        banner = QLabel(banner_text)
+        banner.setWordWrap(True)
+        banner.setStyleSheet(banner_style)
+        v.addWidget(banner)
 
         for label, hint, key in [
             ("TMDb API Key",
@@ -237,7 +247,9 @@ class SettingsPanel(QWidget):
             field = QLineEdit()
             field.setEchoMode(QLineEdit.EchoMode.Password)
             field.setPlaceholderText("Paste key here…")
+            field.blockSignals(True)
             field.setText(self._config.get_api_key(key))
+            field.blockSignals(False)
             field.textChanged.connect(lambda t, k=key: self._config.set_api_key(k, t))
             row.addWidget(field, 1)
             show = QPushButton("Show")
@@ -246,6 +258,12 @@ class SettingsPanel(QWidget):
                 QLineEdit.EchoMode.Normal if f.echoMode() == QLineEdit.EchoMode.Password
                 else QLineEdit.EchoMode.Password))
             row.addWidget(show)
+            clear = QPushButton("Clear")
+            clear.setFixedWidth(60)
+            clear.setObjectName("btn_danger")
+            clear.clicked.connect(lambda _, k=key, f=field: (
+                self._config.delete_api_key(k), f.clear()))
+            row.addWidget(clear)
             cv.addLayout(row)
             v.addWidget(card)
 
