@@ -16,6 +16,29 @@
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><b>First-launch wizard</b></td>
+    <td align="center"><b>Dashboard</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/00_wizard.png" alt="Setup wizard" width="400"/></td>
+    <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Rename panel</b></td>
+    <td align="center"><b>Activity log</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
+    <td><img src="screenshots/05_log.png" alt="Activity log" width="400"/></td>
+  </tr>
+</table>
+
+---
+
 ## What it does
 
 Orion turns a messy media folder into the exact structure Jellyfin expects:
