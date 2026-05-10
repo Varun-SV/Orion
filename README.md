@@ -28,20 +28,28 @@
     <td><img src="screenshots/00b_wizard_categories.png" alt="Setup wizard categories" width="400"/></td>
   </tr>
   <tr>
+    <td align="center"><b>Setup wizard — API Keys</b></td>
     <td align="center"><b>Dashboard</b></td>
-    <td align="center"><b>Rename panel</b></td>
   </tr>
   <tr>
+    <td><img src="screenshots/00c_wizard_apikeys.png" alt="Setup wizard API keys" width="400"/></td>
     <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Rename panel</b></td>
+    <td align="center"><b>Settings — API Keys</b></td>
+  </tr>
+  <tr>
     <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Settings — API Keys (OS keychain)</b></td>
-    <td align="center"><b>Activity log</b></td>
-  </tr>
-  <tr>
     <td><img src="screenshots/04_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Activity log</b></td>
+    <td></td>
+  </tr>
+  <tr>
     <td><img src="screenshots/05_log.png" alt="Activity log" width="400"/></td>
+    <td></td>
   </tr>
 </table>
 

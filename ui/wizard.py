@@ -249,7 +249,7 @@ class SetupWizard(QDialog):
         v.setContentsMargins(28, 24, 28, 24)
         v.setSpacing(16)
         v.addWidget(self._heading("API keys",
-            "Optional but recommended — enables poster thumbnails and accurate renaming. Keys are session-only and never saved to disk."))
+            "Optional but recommended — enables poster thumbnails and accurate renaming."))
 
         if self._config.keyring_available():
             info_text = ("🔒  Keys are stored securely in your OS keychain "
