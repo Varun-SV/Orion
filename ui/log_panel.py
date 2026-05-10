@@ -93,19 +93,19 @@ class LogPanel(QWidget):
         for log in rows:
             r = self._tbl.rowCount()
             self._tbl.insertRow(r)
-            ts = log.get("created_at", "")[:19]
+            ts     = log.get("created_at", "")[:19]
+            status = log["status"]
+            fg     = QColor(STATUS_COLORS[status]) if status in STATUS_COLORS else QColor(255, 255, 255, 127)
             for col, val in enumerate([ts, log["action"], log["item_path"],
-                                       log.get("detail", ""), log["status"]]):
+                                       log.get("detail", ""), status]):
                 item = QTableWidgetItem(str(val))
-                item.setForeground(
-                    QColor(STATUS_COLORS.get(log["status"], "rgba(255,255,255,0.5)")))
+                item.setForeground(fg)
                 self._tbl.setItem(r, col, item)
 
         self._count_lbl.setText(f"{len(rows)} entries")
 
     def _clear(self) -> None:
-        self._db._c().execute("DELETE FROM activity_log")
-        self._db._conn.commit()
+        self._db.clear_log()
         self._all_logs = []
         self._tbl.setRowCount(0)
         self._count_lbl.setText("0 entries")

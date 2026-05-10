@@ -285,6 +285,10 @@ class Database:
                     "SELECT * FROM activity_log ORDER BY id DESC LIMIT ?",
                     (limit,))]
 
+    def clear_log(self) -> None:
+        self._c().execute("DELETE FROM activity_log")
+        self._conn.commit()
+
     # ── Stats ───────────────────────────────────────────────────────────
     def get_stats(self) -> dict:
         c = self._c()

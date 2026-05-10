@@ -21,6 +21,7 @@ from api.tmdb import TMDbClient, Candidate
 from api.anilist import AniListClient
 from workers.api_worker import ApiWorker
 from workers.move_worker import MoveWorker
+from workers.batch_approve_worker import BatchApproveWorker
 
 
 class PosterSignal(QObject):
@@ -101,14 +102,20 @@ class CandidateCard(QFrame):
 class RenamePanel(QWidget):
     def __init__(self, db: Database, config: Config, parent=None):
         super().__init__(parent)
-        self._db       = db
-        self._config   = config
-        self._items:   list[dict] = []
-        self._current: dict | None = None
-        self._cards:   list[CandidateCard] = []
-        self._worker:  ApiWorker | None = None
+        self._db           = db
+        self._config       = config
+        self._items:       list[dict] = []
+        self._current:     dict | None = None
+        self._cards:       list[CandidateCard] = []
+        self._worker:      ApiWorker | None = None
         self._move_worker: MoveWorker | None = None
+        self._batch_worker: BatchApproveWorker | None = None
+        self._renamer:     Renamer | None = None
         self._setup_ui()
+
+    def _refresh_renamer(self) -> None:
+        tmdb           = TMDbClient(self._config.get_api_key("tmdb"))
+        self._renamer  = Renamer(self._db, tmdb, AniListClient())
 
     def _setup_ui(self) -> None:
         v = QVBoxLayout(self)
@@ -168,7 +175,6 @@ class RenamePanel(QWidget):
         rv.setContentsMargins(20, 20, 20, 16)
         rv.setSpacing(12)
 
-        # Item info
         self._item_title = QLabel("Select an item to rename")
         self._item_title.setStyleSheet("font-size:14px; font-weight:500; color:#fff;")
         self._item_title.setWordWrap(True)
@@ -178,13 +184,11 @@ class RenamePanel(QWidget):
         self._item_sub.setWordWrap(True)
         rv.addWidget(self._item_sub)
 
-        # Loading indicator
         self._loading_lbl = QLabel("Fetching candidates…")
         self._loading_lbl.setStyleSheet("color:#00a4dc; font-size:11px;")
         self._loading_lbl.setVisible(False)
         rv.addWidget(self._loading_lbl)
 
-        # Cards scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -199,7 +203,6 @@ class RenamePanel(QWidget):
         scroll.setWidget(self._cards_wrap)
         rv.addWidget(scroll, 1)
 
-        # Action row
         actions = QHBoxLayout()
         self._skip_btn = QPushButton("Skip")
         self._skip_btn.clicked.connect(self._skip_item)
@@ -230,11 +233,9 @@ class RenamePanel(QWidget):
         resolved = self._db.get_all_rename_choices()
         resolved_names = {r["original_name"] for r in resolved}
 
-        pending, skipped, done = [], [], []
+        pending, done = [], []
         for item in self._items:
-            if item["status"] == "moved":
-                done.append(item)
-            elif item["name"] in resolved_names:
+            if item["status"] == "moved" or item["name"] in resolved_names:
                 done.append(item)
             else:
                 pending.append(item)
@@ -242,7 +243,7 @@ class RenamePanel(QWidget):
         def _section(label: str):
             li = QListWidgetItem(f"  {label}")
             li.setFlags(Qt.ItemFlag.NoItemFlags)
-            li.setForeground(QColor("rgba(255,255,255,0.2)"))
+            li.setForeground(QColor(255, 255, 255, 51))
             font = li.font(); font.setPointSize(9); li.setFont(font)
             self._item_list.addItem(li)
 
@@ -282,22 +283,21 @@ class RenamePanel(QWidget):
         self._item_sub.setText(item["path"])
         self._clear_cards()
 
-        # Check saved choice
         saved = self._db.get_rename_choice(item["name"])
         if saved:
             self._item_title.setText(f"{item['name']}  →  {saved['chosen_name']}")
             return
 
-        # Fetch candidates
         cat = self._db.get_category(item["detected_category"])
         if not cat:
             self._load_candidates_empty()
             return
-        tmdb    = TMDbClient(self._config.get_api_key("tmdb"))
-        anilist = AniListClient()
-        renamer = Renamer(self._db, tmdb, anilist)
+
+        if self._renamer is None:
+            self._refresh_renamer()
+
         self._loading_lbl.setVisible(True)
-        self._worker = ApiWorker(renamer, item["name"],
+        self._worker = ApiWorker(self._renamer, item["name"],
                                  cat["media_type"], cat["api_pref"])
         self._worker.candidates_ready.connect(self._on_candidates)
         self._worker.error.connect(lambda e: self._loading_lbl.setText(f"Error: {e}"))
@@ -309,7 +309,6 @@ class RenamePanel(QWidget):
             self._load_candidates_empty()
             return
         if len(candidates) == 1:
-            # Auto-accept
             c   = candidates[0]
             cat = self._db.get_category(
                 self._current["detected_category"] if self._current else "")
@@ -362,7 +361,6 @@ class RenamePanel(QWidget):
         self._db.set_rename_choice(self._current["name"], name, mtype, "user")
         self._populate_list()
         self._update_toolbar()
-        # Auto-advance
         row = self._item_list.currentRow()
         if row + 1 < self._item_list.count():
             self._item_list.setCurrentRow(row + 1)
@@ -381,47 +379,92 @@ class RenamePanel(QWidget):
         text, ok = QInputDialog.getText(self, "Manual rename",
                                         "Enter the correct folder name:")
         if ok and text.strip():
-            name = sanitize_windows_name(text.strip())
-            cat  = self._db.get_category(self._current["detected_category"])
+            name  = sanitize_windows_name(text.strip())
+            cat   = self._db.get_category(self._current["detected_category"])
             mtype = cat["media_type"] if cat else "movie"
             self._db.set_rename_choice(self._current["name"], name, mtype, "user")
             self._populate_list()
             self._update_toolbar()
 
+    # ── Batch auto-approve ────────────────────────────────────────────
     def _approve_all_auto(self) -> None:
-        """Accept all single-candidate auto-matches that haven't been decided yet."""
+        if self._batch_worker and self._batch_worker.isRunning():
+            return
         undecided = [it for it in self._items
                      if not self._db.get_rename_choice(it["name"])]
-        approved = 0
-        for item in undecided:
-            cat = self._db.get_category(item["detected_category"])
-            if not cat:
-                continue
-            from core.renamer import Renamer
-            tmdb    = TMDbClient(self._config.get_api_key("tmdb"))
-            anilist = AniListClient()
-            renamer = Renamer(self._db, tmdb, anilist)
-            candidates = renamer.get_candidates(item["name"], cat["media_type"], cat["api_pref"])
-            if len(candidates) == 1:
-                with_year = cat["media_type"] in ("movie", "anime_film")
-                name = sanitize_windows_name(candidates[0].display(with_year))
-                self._db.set_rename_choice(item["name"], name, cat["media_type"], "auto")
-                approved += 1
+        if not undecided:
+            self._prog_lbl.setText("All items already resolved.")
+            return
+        cats = self._db.get_categories()
+        self._batch_worker = BatchApproveWorker(
+            self._db, self._config, undecided, cats)
+        self._batch_worker.progress.connect(self._on_approve_progress)
+        self._batch_worker.item_approved.connect(self._on_item_approved)
+        self._batch_worker.complete.connect(self._on_approve_done)
+        self._approve_btn.setEnabled(False)
+        self._move_btn.setEnabled(False)
+        self._batch_worker.start()
+
+    def _on_approve_progress(self, current: int, total: int, name: str) -> None:
+        self._prog_bar.setMaximum(total)
+        self._prog_bar.setValue(current)
+        self._prog_lbl.setText(f"Auto-approving {current}/{total}: {name}")
+
+    def _on_item_approved(self, orig: str, chosen: str, mtype: str) -> None:
+        pass  # DB already updated in worker; list refreshes on complete
+
+    def _on_approve_done(self, approved: int) -> None:
+        self._approve_btn.setEnabled(True)
+        self._move_btn.setEnabled(True)
         self._populate_list()
         self._update_toolbar()
+        self._prog_lbl.setText(f"Auto-approved {approved} item(s).")
 
+    # ── Move ──────────────────────────────────────────────────────────
     def _start_move(self) -> None:
-        items = self._db.get_scan_items()
+        if self._move_worker and self._move_worker.isRunning():
+            return
         choices = {r["original_name"]: r["chosen_name"]
                    for r in self._db.get_all_rename_choices()}
-        dsts  = self._db.get_destinations()
-        cats  = self._db.get_categories()
+        all_items = self._db.get_scan_items()
+        # Only move items that have a confirmed rename choice and aren't done yet
+        items = [it for it in all_items
+                 if it["name"] in choices
+                 and it["status"] not in ("moved", "organised")]
+        if not items:
+            self._prog_lbl.setText("No resolved items to move.")
+            return
+
+        dsts = self._db.get_destinations()
+        cats = self._db.get_categories()
         self._move_worker = MoveWorker(self._db, items, dsts, cats, choices)
+        self._move_worker.progress.connect(self._on_move_progress)
+        self._move_worker.item_done.connect(self._on_move_item_done)
         self._move_worker.complete.connect(self._on_move_done)
+        self._move_btn.setEnabled(False)
+        self._approve_btn.setEnabled(False)
+        self._prog_bar.setMaximum(len(items))
+        self._prog_bar.setValue(0)
         self._move_worker.start()
 
+    def _on_move_progress(self, current: int, total: int, path: str) -> None:
+        self._prog_bar.setMaximum(total)
+        self._prog_bar.setValue(current)
+        self._prog_lbl.setText(f"Moving {current}/{total}…")
+
+    def _on_move_item_done(self, path: str, success: bool) -> None:
+        pass  # Status is updated in DB by MoveWorker; list refreshes on complete
+
     def _on_move_done(self, moved: int, failed: int) -> None:
+        self._move_btn.setEnabled(True)
+        self._approve_btn.setEnabled(True)
+        self._prog_bar.setValue(self._prog_bar.maximum())
+        parts = [f"{moved} moved"]
+        if failed:
+            parts.append(f"{failed} failed")
+        self._prog_lbl.setText(", ".join(parts))
         self.refresh()
 
     def on_shown(self) -> None:
+        self._refresh_renamer()   # pick up any API key changes from Settings
         self.refresh()

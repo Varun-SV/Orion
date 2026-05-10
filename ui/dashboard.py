@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QFrame, QGridLayout, QScrollArea,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from core.config import Config
 from core.database import Database
 from core.utils import format_bytes
@@ -232,14 +233,14 @@ class DashboardPanel(QWidget):
     def _refresh_activity(self) -> None:
         self._act_list.clear()
         logs = self._db.get_logs(20)
-        icons = {"ok": "✓", "error": "✗", "warning": "⚠"}
+        icons  = {"ok": "✓", "error": "✗", "warning": "⚠"}
         colors = {"ok": "#28c840", "error": "#ff5f57", "warning": "#febc2e"}
         for entry in logs:
-            icon  = icons.get(entry["status"], "·")
-            color = colors.get(entry["status"], "rgba(255,255,255,0.3)")
-            item  = QListWidgetItem(f"  {icon}  {entry['action']}  {entry['item_path'][:48]}")
-            item.setForeground(
-                __import__("PyQt6.QtGui", fromlist=["QColor"]).QColor(color))
+            icon   = icons.get(entry["status"], "·")
+            status = entry["status"]
+            fg     = QColor(colors[status]) if status in colors else QColor(255, 255, 255, 76)
+            item   = QListWidgetItem(f"  {icon}  {entry['action']}  {entry['item_path'][:48]}")
+            item.setForeground(fg)
             self._act_list.addItem(item)
 
     def on_shown(self) -> None:

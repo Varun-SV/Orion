@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from core.config import Config
 from core.database import Database
 from workers.scan_worker import ScanWorker
@@ -34,7 +35,12 @@ class ScanPanel(QWidget):
         title.setStyleSheet("font-size:17px; font-weight:500; color:#fff;")
         hdr.addWidget(title)
         hdr.addStretch()
-        self._deep_btn = QPushButton("Deep scan  (+ API lookups)")
+        self._stop_btn = QPushButton("Stop scan")
+        self._stop_btn.setObjectName("btn_danger")
+        self._stop_btn.clicked.connect(self._stop_scan)
+        self._stop_btn.setVisible(False)
+        hdr.addWidget(self._stop_btn)
+        self._deep_btn = QPushButton("Deep scan  (+ guessit)")
         self._deep_btn.clicked.connect(lambda: self._start_scan(deep=True))
         hdr.addWidget(self._deep_btn)
         self._scan_btn = QPushButton("Scan now")
@@ -51,6 +57,28 @@ class ScanPanel(QWidget):
         self._prog_bar.setFixedHeight(4)
         self._prog_bar.setVisible(False)
         v.addWidget(self._prog_bar)
+
+        # Suggestion notification bar (hidden until suggestions arrive)
+        self._sug_bar = QFrame()
+        self._sug_bar.setStyleSheet(
+            "QFrame{background:rgba(0,164,220,0.12);"
+            "border-bottom:1px solid rgba(0,164,220,0.3);}"
+        )
+        sb = QHBoxLayout(self._sug_bar)
+        sb.setContentsMargins(14, 8, 14, 8)
+        self._sug_lbl = QLabel("")
+        self._sug_lbl.setStyleSheet("color:rgba(0,164,220,0.9); font-size:11px;")
+        sb.addWidget(self._sug_lbl)
+        sb.addStretch()
+        review_btn = QPushButton("Review →")
+        review_btn.clicked.connect(self._show_category_dialog)
+        sb.addWidget(review_btn)
+        dismiss_btn = QPushButton("✕")
+        dismiss_btn.setFixedWidth(28)
+        dismiss_btn.clicked.connect(lambda: self._sug_bar.setVisible(False))
+        sb.addWidget(dismiss_btn)
+        self._sug_bar.setVisible(False)
+        v.addWidget(self._sug_bar)
 
         # Source folder status list
         src_card = QFrame()
@@ -102,18 +130,27 @@ class ScanPanel(QWidget):
         self._prog_bar.setRange(0, 0)
         self._scan_btn.setEnabled(False)
         self._deep_btn.setEnabled(False)
+        self._stop_btn.setVisible(True)
+        self._sug_bar.setVisible(False)
         self._suggestions = []
 
         cats = self._db.get_categories()
         sfs  = self._db.get_source_folders()
 
-        self._worker = ScanWorker(self._db, sfs, cats, pre_scan_only=False)
+        self._worker = ScanWorker(self._db, sfs, cats,
+                                  pre_scan_only=False, deep=deep)
         self._worker.progress.connect(self._on_progress)
         self._worker.item_found.connect(self._on_item_found)
         self._worker.suggestions.connect(self._on_suggestions)
         self._worker.complete.connect(self._on_complete)
         self._worker.error.connect(self._on_error)
         self._worker.start()
+
+    def _stop_scan(self) -> None:
+        if self._worker:
+            self._worker.stop()
+        self._stop_btn.setVisible(False)
+        self._prog_lbl.setText("Stopping…")
 
     def _on_progress(self, msg: str) -> None:
         self._prog_lbl.setText(msg)
@@ -122,33 +159,45 @@ class ScanPanel(QWidget):
         cat  = item["category"] or "unclassified"
         name = item["name"]
         li   = QListWidgetItem(f"  {cat}  ·  {name}")
-        li.setForeground(
-            __import__("PyQt6.QtGui", fromlist=["QColor"]).QColor("rgba(255,255,255,0.55)"))
+        li.setForeground(QColor(255, 255, 255, 140))
         self._result_list.addItem(li)
         n = self._result_list.count()
         self._count_lbl.setText(f"{n} item(s)")
 
     def _on_suggestions(self, sug: list) -> None:
-        self._suggestions.extend(sug)
-        if self._suggestions:
-            self._show_category_dialog()
+        """Buffer suggestions; they are shown as a bar after scan completes."""
+        existing = {c["name"].lower() for c in self._db.get_categories()}
+        new_sug  = [s for s in sug if s["name"].lower() not in existing]
+        self._suggestions.extend(new_sug)
 
     def _on_complete(self, total: int) -> None:
         self._prog_bar.setVisible(False)
         self._prog_bar.setRange(0, 1)
         self._scan_btn.setEnabled(True)
         self._deep_btn.setEnabled(True)
+        self._stop_btn.setVisible(False)
         self._prog_lbl.setText(f"Scan complete — {total} item(s) found.")
         self._db.add_log("scan", "all", f"{total} items", "ok")
+
+        if self._suggestions:
+            n = len(self._suggestions)
+            noun = "category" if n == 1 else "categories"
+            self._sug_lbl.setText(
+                f"{n} new {noun} detected — review and add to your configuration")
+            self._sug_bar.setVisible(True)
+
         self.scan_complete.emit()
 
     def _on_error(self, msg: str) -> None:
         self._prog_lbl.setText(f"Error: {msg}")
 
     def _show_category_dialog(self) -> None:
+        if not self._suggestions:
+            return
         dlg = CategorySuggestionDialog(self._suggestions, self._db, self)
         dlg.exec()
         self._suggestions = []
+        self._sug_bar.setVisible(False)
 
     def on_shown(self) -> None:
         self._refresh_sources()

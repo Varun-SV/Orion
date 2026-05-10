@@ -17,7 +17,10 @@ class Mover:
 
     @staticmethod
     def is_same_drive(src: Path, dst: Path) -> bool:
-        return src.drive.lower() == dst.drive.lower()
+        try:
+            return os.stat(src).st_dev == os.stat(dst.parent).st_dev
+        except OSError:
+            return src.drive.lower() == dst.drive.lower()
 
     def compute_destination(self, item_path: str, category_name: str,
                             destinations: list[dict],
