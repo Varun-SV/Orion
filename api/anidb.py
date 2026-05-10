@@ -15,7 +15,7 @@ ANIDB_URL = "http://api.anidb.net:9001/httpapi"
 
 
 class AniDBClient:
-    def __init__(self, client: str = "jellyfinorganizer",
+    def __init__(self, client: str = "orion",
                  client_ver: int = 1) -> None:
         self._client  = client
         self._ver     = client_ver

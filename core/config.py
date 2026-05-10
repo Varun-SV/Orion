@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class Config:
-    APP_NAME = "JellyfinOrganizer"
+    APP_NAME = "Orion"
 
     def __init__(self) -> None:
         self._appdata = Path(os.environ.get("APPDATA", Path.home())) / self.APP_NAME
