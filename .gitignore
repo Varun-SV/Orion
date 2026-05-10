@@ -206,6 +206,7 @@ tempCodeRunnerFile.py
 
 # Dev helpers
 _take_screenshots.py
+_smoke_test.py
 
 # Ruff stuff:
 .ruff_cache/
