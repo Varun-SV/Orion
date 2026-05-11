@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QDialog,
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
 from PyQt6.QtGui import QColor, QPixmap, QImage
 
 from core.config import Config
@@ -487,13 +487,13 @@ class VideoPanel(QWidget):
             card.selected.connect(self._on_card_selected)
             self._cards_layout.addWidget(card)
             self._cards.append(card)
-        self._cards_wrap.adjustSize()
+        QTimer.singleShot(0, self._fit_cards_wrap)
 
     def _load_candidates_empty(self) -> None:
         lbl = QLabel("No API results. Use 'Enter manually' or 'Skip'.")
         lbl.setStyleSheet("color:rgba(255,255,255,0.3);font-size:12px;")
         self._cards_layout.addWidget(lbl)
-        self._cards_wrap.adjustSize()
+        QTimer.singleShot(0, self._fit_cards_wrap)
 
     def _on_card_selected(self, candidate: Candidate) -> None:
         self._selected_candidate = candidate
@@ -502,13 +502,18 @@ class VideoPanel(QWidget):
         self.sender().highlight(True)
         self._confirm_btn.setEnabled(True)
 
+    def _fit_cards_wrap(self) -> None:
+        sh = self._cards_wrap.sizeHint()
+        if sh.isValid():
+            self._cards_wrap.resize(sh)
+
     def _clear_cards(self) -> None:
         self._cards = []
         while self._cards_layout.count():
             item = self._cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        self._cards_wrap.adjustSize()
+        QTimer.singleShot(0, self._fit_cards_wrap)
 
     def _confirm_current(self) -> None:
         if not self._current or not self._selected_candidate:
