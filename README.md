@@ -36,20 +36,20 @@
     <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
   </tr>
   <tr>
+    <td align="center"><b>Scan — category suggestions bar</b></td>
     <td align="center"><b>Rename panel</b></td>
-    <td align="center"><b>Settings — API Keys</b></td>
   </tr>
   <tr>
+    <td><img src="screenshots/02_scan_suggestions.png" alt="Scan panel with category suggestions" width="400"/></td>
     <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
-    <td><img src="screenshots/04_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
   </tr>
   <tr>
+    <td align="center"><b>Settings — API Keys</b></td>
     <td align="center"><b>Activity log</b></td>
-    <td></td>
   </tr>
   <tr>
+    <td><img src="screenshots/04_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
     <td><img src="screenshots/05_log.png" alt="Activity log" width="400"/></td>
-    <td></td>
   </tr>
 </table>
 
@@ -82,12 +82,16 @@ It handles the full pipeline: **scan → identify → rename → move**, with po
 ## Features
 
 - **Guided first-launch wizard** — sources, categories, destinations, and API keys in one flow
-- **Auto category detection** — infers movie / series / anime from folder names and structure
+- **Fast scan** — infers movie / series / anime from folder names with regex heuristics
+- **Deep scan** — walks all video files, runs `guessit` on up to 50 filenames per folder for a consensus media-type; more accurate for ambiguously-named folders
+- **Category suggestion bar** — new categories detected during a scan are buffered and shown in a non-blocking notification bar after the scan completes; all suggestions combined into one review dialog
 - **API-powered renaming** — searches TMDb (movies & TV) and AniList / AniDB (anime); poster thumbnails shown inline
+- **Batch auto-approve** — rate-limit-aware: fires parallel requests up to the safe API batch limit (TMDb: 20, AniList: 15, AniDB: 5), then switches to sequential for the remainder
 - **Quality tag control** — choose which tags (`[1080p]`, `[HDR]`, `[BluRay]`…) to keep per file
 - **Episode naming** — configurable `S{s:02d}E{e:02d}` pattern with episode titles fetched from API
-- **Same-drive fast moves** — uses `os.rename` (instant) when source and destination share a drive; falls back to `shutil.move` across drives
-- **Session-only API keys** — keys live in memory only, never written to disk
+- **Same-drive fast moves** — detects same filesystem via `os.stat().st_dev` (correct on Linux multi-mount setups); falls back to `shutil.move` across drives
+- **OS keychain API keys** — keys stored in the OS keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service); never written to plain-text files
+- **Scan abort** — Stop button cancels a running scan cleanly mid-walk
 - **System tray** — minimizes to tray, shows progress notifications on completion
 - **Activity log** — full history of every rename and move
 - **Cross-platform** — Windows, macOS, and Linux
@@ -267,7 +271,7 @@ Orion/
 - **AniDB requires client registration** — unregistered clients are aggressively rate-limited. Register at [anidb.net/software/add](https://anidb.net/software/add) and enter your client ID on the API keys screen.
 - **Linux without a keyring daemon** — headless or minimal Linux installs may have no Secret Service provider. Install GNOME Keyring (`gnome-keyring`) or KWallet and ensure a D-Bus session is running; without one, keys fall back to session-only.
 - **No undo** — moves are immediate; verify your destination path in Settings before running.
-- **Same-drive detection is drive-letter based** — on Linux/macOS all paths share an empty drive string, so same-drive fast-path is always taken.
+- **Deep scan on large libraries is slower** — guessit is run on up to 50 video filenames per folder; on a source with hundreds of folders this adds a few seconds per folder compared to the fast scan.
 
 ---
 
