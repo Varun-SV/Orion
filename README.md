@@ -21,26 +21,26 @@
 <table>
   <tr>
     <td align="center"><b>Setup wizard — Welcome</b></td>
-    <td align="center"><b>Setup wizard — Categories</b></td>
+    <td align="center"><b>Dashboard</b></td>
   </tr>
   <tr>
     <td><img src="screenshots/00_wizard.png" alt="Setup wizard welcome" width="400"/></td>
-    <td><img src="screenshots/00b_wizard_categories.png" alt="Setup wizard categories" width="400"/></td>
+    <td><img src="screenshots/new_01_dashboard.png" alt="Dashboard" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Dashboard</b></td>
-    <td align="center"><b>Scan — category suggestions bar</b></td>
+    <td align="center"><b>Movies panel</b></td>
+    <td align="center"><b>Series panel</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/01_dashboard.png" alt="Dashboard" width="400"/></td>
-    <td><img src="screenshots/02_scan_suggestions.png" alt="Scan panel with category suggestions" width="400"/></td>
+    <td><img src="screenshots/new_02_movies.png" alt="Movies panel" width="400"/></td>
+    <td><img src="screenshots/new_03_series.png" alt="Series panel" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Rename panel (with Dry run / In-place)</b></td>
+    <td align="center"><b>Web Series panel</b></td>
     <td align="center"><b>Music Library panel</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/03_rename.png" alt="Rename panel" width="400"/></td>
+    <td><img src="screenshots/new_04_web_series.png" alt="Web Series panel" width="400"/></td>
     <td><img src="screenshots/05_music.png" alt="Music Library panel" width="400"/></td>
   </tr>
   <tr>
@@ -49,7 +49,7 @@
   </tr>
   <tr>
     <td><img src="screenshots/06_books.png" alt="Books Library panel" width="400"/></td>
-    <td><img src="screenshots/04_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
+    <td><img src="screenshots/new_05_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
   </tr>
 </table>
 
@@ -73,6 +73,11 @@ Anime/
   Attack on Titan (2013)/
     Season 01/
       Attack on Titan (2013) - S01E01 - To You, in 2000 Years.mkv
+
+Web Series/
+  The Boys (2019)/
+    Season 01/
+      The Boys (2019) - S01E01 - The Name of the Game.mkv
 
 Music/
   Queen/
@@ -98,20 +103,39 @@ It handles the full pipeline: **scan → identify → rename → move**, with po
 ## Features
 
 ### Video
+
+Each media type gets its own dedicated panel with a full scan → identify → move workflow:
+
+| Panel | Media type | API source |
+|---|---|---|
+| **Movies** | Feature films | TMDb movie search |
+| **Series** | TV shows | TMDb TV search |
+| **Anime** | Anime series & seasons | AniList + optional AniDB |
+| **Anime Films** | Anime feature films | AniList + optional AniDB |
+| **Web Series** | Streaming originals | TMDb TV search |
+
 - **Guided first-launch wizard** — sources, categories, destinations, and API keys in one flow
-- **Fast scan** — infers movie / series / anime from folder names with regex heuristics
+- **Fast scan** — infers media type from folder names with regex heuristics; only items matching the current panel's type are loaded
 - **Deep scan** — walks all video files, runs `guessit` on up to 50 filenames per folder for a consensus media-type; more accurate for ambiguously-named folders
 - **Category suggestion bar** — new categories detected during a scan are buffered and shown in a non-blocking notification bar after the scan completes; all suggestions combined into one review dialog
-- **API-powered renaming** — searches TMDb (movies & TV) and AniList / AniDB (anime); poster thumbnails shown inline
+- **API-powered renaming** — fetches candidates from the appropriate API for each panel; poster thumbnails shown inline
 - **Batch auto-approve** — rate-limit-aware: fires parallel requests up to the safe API batch limit (TMDb: 20, AniList: 15, AniDB: 5), then switches to sequential for the remainder
 - **Quality tag control** — choose which tags (`[1080p]`, `[HDR]`, `[BluRay]`…) to keep per file
 - **Episode naming** — configurable `S{s:02d}E{e:02d}` pattern with episode titles fetched from API
+- **Scan isolation** — each panel only clears and repopulates its own items; scanning Movies does not affect Series or Anime
 
 ### Music
-- **Audio tag reading** — reads embedded ID3/Vorbis/MP4 tags via `mutagen`; if tags are complete, skips the API entirely
-- **Audio fingerprinting** — when tags are missing, runs `fpcalc` (Chromaprint) on the file and submits the fingerprint to [AcoustID](https://acoustid.org) for identification; results are verified against MusicBrainz
+
+Three-stage identification pipeline, from most to least accurate:
+
+1. **Embedded tags** — reads ID3 / Vorbis / MP4 tags via `mutagen`; if all key fields are present, skips the API entirely
+2. **Audio fingerprinting** — runs `fpcalc` (Chromaprint) on the file and submits the fingerprint to [AcoustID](https://acoustid.org); results are verified and expanded via MusicBrainz
+3. **AudD recognition** — when AcoustID scores below the confidence threshold, the first 512 KB of the file is sent to [AudD.io](https://audd.io) for audio recognition; returns artist, album, and release date
+4. **MusicBrainz text search** — last resort: searches by filename stem when neither fingerprinting nor AudD gives a confident match; also used as the first fallback when `fpcalc` is not installed
+
+Additional details:
+
 - **MusicBrainz metadata** — full artist, album, year, and track number fetched from the free MusicBrainz API (no key required); 1 req/s rate limit enforced class-wide
-- **Filename fallback** — if `fpcalc` is not installed, falls back to a MusicBrainz text search by filename stem
 - **Jellyfin music layout** — organises into `Artist / Album (Year) / TrackNum - Title.ext`
 - **Chromaprint install banner** — shows an in-panel warning with install instructions if `fpcalc` is not in PATH
 
@@ -124,8 +148,8 @@ It handles the full pipeline: **scan → identify → rename → move**, with po
 
 ### Organisation
 - **Same-drive fast moves** — detects same filesystem via `os.stat().st_dev` (correct on Linux multi-mount setups); falls back to `shutil.move` across drives
-- **In-place organisation** — "In-place" checkbox in the Rename panel reorganises folders *within* the source folder rather than moving them to a new destination; useful when your source is already on the right drive
-- **Dry run** — "Dry run" checkbox in the Rename, Music, and Books panels shows a preview table of every planned Source → Destination path *without touching any files*; uncheck to execute for real
+- **In-place organisation** — "In-place" checkbox reorganises folders *within* the source folder rather than moving them to a new destination; useful when your source is already on the right drive
+- **Dry run** — "Dry run" checkbox shows a preview table of every planned Source → Destination path *without touching any files*; uncheck to execute for real
 
 ### App
 - **OS keychain API keys** — stored in Windows Credential Manager / macOS Keychain / Linux Secret Service; never written to plain-text files
@@ -163,7 +187,7 @@ sudo apt install libchromaprint-tools
 brew install chromaprint
 ```
 
-Without `fpcalc`, Orion falls back to a MusicBrainz text search by filename — identification still works but is less accurate for files with no embedded tags.
+Without `fpcalc`, Orion falls back to AudD recognition then MusicBrainz text search — identification still works but is less accurate for files with no embedded tags.
 
 ---
 
@@ -198,7 +222,7 @@ A setup wizard runs automatically the first time you open Orion:
 | 2 — Sources | Browse to your unorganized media folders; Orion pre-scans and suggests categories |
 | 3 — Categories | Review detected categories — adjust names, media types, API preference, and destination subfolders |
 | 4 — Destinations | Pick the root folder(s) where organized media will land |
-| 5 — API keys | Paste your TMDb key, AniDB client ID, and/or AcoustID key (all optional) |
+| 5 — API keys | Paste your TMDb key, AniDB client ID, AcoustID key, and/or AudD token (all optional) |
 | 6 — Done | Open the dashboard |
 
 ---
@@ -207,10 +231,11 @@ A setup wizard runs automatically the first time you open Orion:
 
 | Service | Used for | Key required? | How to get one |
 |---|---|---|---|
-| **TMDb** | Movies, TV shows, episode titles, posters | Recommended | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) — free account |
+| **TMDb** | Movies, TV shows, Web Series, episode titles, posters | Recommended | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) — free account |
 | **AniList** | Anime search | No | Always active, no key needed |
 | **AniDB** | Anime episode title fallback | Optional | Register a client at [anidb.net/software/add](https://anidb.net/software/add) |
 | **MusicBrainz** | Music metadata | No | Always active, no key needed |
+| **AudD** | Music recognition (second-pass fallback) | Optional | Free 100 req/day at [dashboard.audd.io](https://dashboard.audd.io) |
 | **Open Library** | Book metadata | No | Always active, no key needed |
 | **AcoustID** | Audio fingerprint lookup | Optional | Free at [acoustid.org/login](https://acoustid.org/login) — enables fingerprint-based music ID |
 
@@ -228,13 +253,17 @@ Use **Settings → API Keys → Clear** to remove a stored key. If no keyring ba
 
 ## Usage walkthrough
 
-### Video: Scan → Rename → Move
+### Video: Scan → Identify → Move
 
-1. **Scan panel** — click **Scan now** (fast) or **Deep scan** (uses `guessit` on video filenames for better accuracy). Orion walks your source folders, matches them to categories, and populates the item list.
+Each video panel (Movies, Series, Anime, Anime Films, Web Series) is independent — pick the panel that matches your files:
 
-2. **Rename panel** — for each item, Orion fetches API candidates (TMDb / AniList based on category preference). Pick the correct match from the poster cards, or click **Approve all auto-matched** to let Orion resolve single-result items automatically.
+1. **Click the panel** in the sidebar (e.g. **▶ Movies** or **☰ Series**).
 
-3. **Move** — once choices are confirmed, click **Move all resolved →**. Orion builds the destination path from your category's configured subfolder, prefers same-drive destinations for instant moves, and logs every action.
+2. **Scan** — click **Scan now** (fast) or **Deep scan** (runs `guessit` on video filenames for better accuracy on ambiguously-named folders). Only items matching this panel's media type are loaded.
+
+3. **Identify** — Orion fetches API candidates for each item (TMDb for movies/series/web-series, AniList/AniDB for anime). Pick the correct match from the poster cards, or click **Approve all auto-matched** to let Orion resolve single-result items automatically.
+
+4. **Move** — once choices are confirmed, click **Move all resolved →**. Orion builds the destination path from your category's configured subfolder, prefers same-drive destinations for instant moves, and logs every action.
 
    - **Dry run**: tick the checkbox first to see a Source → Destination preview table without moving anything.
    - **In-place**: tick this instead to rename folders *inside* the source folder, without moving to a separate destination.
@@ -242,8 +271,8 @@ Use **Settings → API Keys → Clear** to remove a stored key. If no keyring ba
 ### Music
 
 1. Click **♪** in the sidebar to open the Music Library panel.
-2. Click **Scan music** — Orion walks source folders for audio files, reads tags, and fingerprints untagged files via AcoustID + MusicBrainz.
-3. Review the table: files with green **identified** status have good metadata. Yellow **pending** means fingerprinting didn't find a confident match — double-click to edit metadata manually.
+2. Click **Scan music** — Orion walks source folders for audio files. For each file it reads embedded tags, then fingerprints via AcoustID, then tries AudD recognition, then falls back to MusicBrainz text search.
+3. Review the table: files with green **identified** status have good metadata. Yellow **pending** means no stage found a confident match — double-click to edit metadata manually.
 4. Click **Approve all identified**, then **Organise →** to move files into `Artist / Album (Year) / TrackNum - Title.ext`.
 
 ### Books
@@ -286,8 +315,9 @@ Orion stores all state in a single directory:
 | Movie | `Title (Year)/` | `Title (Year) [tags].ext` |
 | TV series | `Series (Year)/Season NN/` | `Series (Year) - SXXEXX - Episode Title.ext` |
 | Anime | `Series (Year)/Season NN/` | `Series (Year) - SXXEXX - Episode Title.ext` |
+| Web Series | `Series (Year)/Season NN/` | `Series (Year) - SXXEXX - Episode Title.ext` |
 
-Quality tags (e.g. `[1080p]`, `[HDR10]`) are optional bracket suffixes you control per file in the Rename panel.
+Quality tags (e.g. `[1080p]`, `[HDR10]`) are optional bracket suffixes you control per file in each panel.
 
 ### Music (Jellyfin)
 
@@ -321,7 +351,7 @@ Orion/
 │   ├── scanner.py             # Source folder walking + category detection heuristics
 │   ├── renamer.py             # API candidate fetch + rename choice persistence
 │   ├── file_namer.py          # Jellyfin filename formatting + quality tag extraction
-│   ├── mover.py               # File/folder move (same-drive, cross-drive, in-place)
+│   ├── mover.py               # File/folder move (same-drive, cross-drive, in-place, preview)
 │   └── utils.py               # Filename sanitization, video/subtitle extension sets
 ├── api/
 │   ├── tmdb.py                # TMDb REST client — movies, TV shows, posters, episode titles
@@ -329,13 +359,13 @@ Orion/
 │   ├── anidb.py               # AniDB HTTP client — anime episode title fallback
 │   ├── musicbrainz.py         # MusicBrainz client — music search + recording fetch (free)
 │   ├── acoustid.py            # AcoustID client — fpcalc fingerprint → MusicBrainz ID
+│   ├── audd.py                # AudD.io client — audio recognition by file upload
 │   └── openlibrary.py         # Open Library client — book search (free)
 ├── ui/
 │   ├── main_window.py         # Sidebar navigation + stacked panels + system tray
 │   ├── wizard.py              # First-launch setup wizard (6 steps)
 │   ├── dashboard.py           # Stats cards, drive bars, sources, categories, activity
-│   ├── scan_panel.py          # Scan controls + item list + suggestion bar
-│   ├── rename_panel.py        # API search, candidate picker, dry run, in-place move
+│   ├── video_panel.py         # Reusable per-type panel: scan + identify + dry run + move
 │   ├── music_panel.py         # Music scan, tag review, fingerprint identification, organise
 │   ├── books_panel.py         # Book scan, metadata review, Open Library lookup, organise
 │   ├── settings_panel.py      # Edit sources, categories, destinations, API keys
@@ -346,7 +376,7 @@ Orion/
 │   ├── api_worker.py          # QThread: video API lookups with progress signals
 │   ├── move_worker.py         # QThread: file moves with per-item progress
 │   ├── batch_approve_worker.py# QThread: parallel + sequential auto-approval
-│   ├── music_scan_worker.py   # QThread: audio tag reading + fingerprinting
+│   ├── music_scan_worker.py   # QThread: audio tag reading + fingerprinting + AudD
 │   └── book_scan_worker.py    # QThread: epub/PDF metadata + Open Library lookup
 ├── build.spec                 # PyInstaller build configuration
 ├── requirements.txt
@@ -359,6 +389,7 @@ Orion/
 
 - **AniDB requires client registration** — unregistered clients are aggressively rate-limited. Register at [anidb.net/software/add](https://anidb.net/software/add) and enter your client ID in Settings → API Keys.
 - **AcoustID key optional but recommended** — without a personal key the fallback test key is shared and heavily rate-limited. Register free at [acoustid.org/login](https://acoustid.org/login).
+- **AudD free tier** — the free AudD plan allows 100 recognition requests per day. For large music libraries, consider adding a paid AudD token or ensuring `fpcalc` is installed so AcoustID is tried first.
 - **Linux without a keyring daemon** — headless or minimal Linux installs may have no Secret Service provider. Install GNOME Keyring (`gnome-keyring`) or KWallet and ensure a D-Bus session is running; without one, keys fall back to session-only.
 - **No undo** — moves are immediate. Use **Dry run** to preview before committing.
 - **Deep scan on large libraries is slower** — `guessit` is run on up to 50 video filenames per folder; on a source with hundreds of folders this adds a few seconds per folder compared to the fast scan.
