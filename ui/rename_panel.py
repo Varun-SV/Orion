@@ -35,7 +35,7 @@ class CandidateCard(QFrame):
     def __init__(self, candidate: Candidate, with_year: bool, parent=None):
         super().__init__(parent)
         self._candidate = candidate
-        self.setFixedWidth(116)
+        self.setFixedSize(116, 210)
         self.setObjectName("candidate_card")
         self.setStyleSheet(
             "#candidate_card{background:#1e1e1e;border:1.5px solid rgba(255,255,255,0.1);"
@@ -62,6 +62,7 @@ class CandidateCard(QFrame):
         name_lbl.setStyleSheet("color:rgba(255,255,255,0.7); font-size:10px; line-height:1.4;")
         name_lbl.setMaximumWidth(106)
         v.addWidget(name_lbl)
+        v.addStretch()   # keep title pinned to poster; don't let it fill card height
 
         if candidate.poster_url:
             self._load_poster(candidate.poster_url)
@@ -193,18 +194,20 @@ class RenamePanel(QWidget):
         rv.addWidget(self._loading_lbl)
 
         scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setWidgetResizable(False)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFixedHeight(218)
         scroll.setStyleSheet("QScrollArea{background:transparent;border:none;}")
         self._cards_wrap = QWidget()
         self._cards_wrap.setStyleSheet("background:transparent;")
         self._cards_layout = QHBoxLayout(self._cards_wrap)
         self._cards_layout.setContentsMargins(0, 4, 0, 4)
         self._cards_layout.setSpacing(10)
-        self._cards_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._cards_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(self._cards_wrap)
-        rv.addWidget(scroll, 1)
+        rv.addStretch()
+        rv.addWidget(scroll)
 
         actions = QHBoxLayout()
         self._skip_btn = QPushButton("Skip")
