@@ -4,3 +4,10 @@ guessit>=3.8.0
 Pillow>=10.3.0
 keyring>=25.0.0
 pyinstaller>=6.8.0
+
+# Music identification
+mutagen>=1.47.0          # read/write audio tags (ID3, Vorbis, MP4…)
+
+# Book metadata
+ebooklib>=0.18           # read epub metadata
+pypdf>=4.0.0             # read pdf metadata

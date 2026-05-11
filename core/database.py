@@ -94,6 +94,60 @@ class Database:
             status     TEXT NOT NULL DEFAULT 'ok',
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS music_items (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_path  TEXT UNIQUE NOT NULL,
+            filename     TEXT NOT NULL,
+            title        TEXT NOT NULL DEFAULT '',
+            artist       TEXT NOT NULL DEFAULT '',
+            album        TEXT NOT NULL DEFAULT '',
+            year         TEXT NOT NULL DEFAULT '',
+            track_number TEXT NOT NULL DEFAULT '',
+            disc_number  TEXT NOT NULL DEFAULT '',
+            duration     REAL NOT NULL DEFAULT 0,
+            mbid         TEXT NOT NULL DEFAULT '',
+            confidence   REAL NOT NULL DEFAULT 0,
+            status       TEXT NOT NULL DEFAULT 'pending',
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS music_rename_choices (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_path  TEXT UNIQUE NOT NULL,
+            artist       TEXT NOT NULL DEFAULT '',
+            album        TEXT NOT NULL DEFAULT '',
+            year         TEXT NOT NULL DEFAULT '',
+            track_number TEXT NOT NULL DEFAULT '',
+            title        TEXT NOT NULL DEFAULT '',
+            mbid         TEXT NOT NULL DEFAULT '',
+            source       TEXT NOT NULL DEFAULT 'user',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS book_items (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_path  TEXT UNIQUE NOT NULL,
+            filename     TEXT NOT NULL,
+            title        TEXT NOT NULL DEFAULT '',
+            author       TEXT NOT NULL DEFAULT '',
+            series       TEXT NOT NULL DEFAULT '',
+            series_index TEXT NOT NULL DEFAULT '',
+            year         TEXT NOT NULL DEFAULT '',
+            isbn         TEXT NOT NULL DEFAULT '',
+            ol_key       TEXT NOT NULL DEFAULT '',
+            format       TEXT NOT NULL DEFAULT '',
+            status       TEXT NOT NULL DEFAULT 'pending',
+            updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS book_rename_choices (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_path  TEXT UNIQUE NOT NULL,
+            title        TEXT NOT NULL DEFAULT '',
+            author       TEXT NOT NULL DEFAULT '',
+            series       TEXT NOT NULL DEFAULT '',
+            series_index TEXT NOT NULL DEFAULT '',
+            year         TEXT NOT NULL DEFAULT '',
+            source       TEXT NOT NULL DEFAULT 'user',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )""")
         self._conn.commit()
 
     # ── Settings ────────────────────────────────────────────────────────
@@ -287,6 +341,130 @@ class Database:
 
     def clear_log(self) -> None:
         self._c().execute("DELETE FROM activity_log")
+        self._conn.commit()
+
+    # ── Music items ─────────────────────────────────────────────────────
+    def upsert_music_item(self, source_path: str, filename: str,
+                          title: str = "", artist: str = "",
+                          album: str = "", year: str = "",
+                          track_number: str = "", disc_number: str = "",
+                          duration: float = 0.0, mbid: str = "",
+                          confidence: float = 0.0,
+                          status: str = "pending") -> None:
+        self._c().execute(
+            "INSERT INTO music_items"
+            "(source_path,filename,title,artist,album,year,"
+            " track_number,disc_number,duration,mbid,confidence,status)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(source_path) DO UPDATE SET"
+            " filename=excluded.filename, title=excluded.title,"
+            " artist=excluded.artist, album=excluded.album,"
+            " year=excluded.year, track_number=excluded.track_number,"
+            " disc_number=excluded.disc_number, duration=excluded.duration,"
+            " mbid=excluded.mbid, confidence=excluded.confidence,"
+            " status=excluded.status,"
+            " updated_at=datetime('now')",
+            (source_path, filename, title, artist, album, year,
+             track_number, disc_number, duration, mbid, confidence, status))
+        self._conn.commit()
+
+    def get_music_items(self, status: str | None = None) -> list[dict]:
+        q, p = "SELECT * FROM music_items WHERE 1=1", []
+        if status:
+            q += " AND status=?"; p.append(status)
+        return [dict(r) for r in
+                self._c().execute(q + " ORDER BY artist, album, track_number", p)]
+
+    def set_music_rename_choice(self, source_path: str, artist: str,
+                                album: str, year: str, track_number: str,
+                                title: str, mbid: str = "",
+                                source: str = "user") -> None:
+        self._c().execute(
+            "INSERT INTO music_rename_choices"
+            "(source_path,artist,album,year,track_number,title,mbid,source)"
+            " VALUES(?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(source_path) DO UPDATE SET"
+            " artist=excluded.artist, album=excluded.album,"
+            " year=excluded.year, track_number=excluded.track_number,"
+            " title=excluded.title, mbid=excluded.mbid, source=excluded.source",
+            (source_path, artist, album, year, track_number, title, mbid, source))
+        self._conn.commit()
+
+    def get_music_rename_choice(self, source_path: str) -> dict | None:
+        row = self._c().execute(
+            "SELECT * FROM music_rename_choices WHERE source_path=?",
+            (source_path,)).fetchone()
+        return dict(row) if row else None
+
+    def update_music_item_status(self, source_path: str, status: str) -> None:
+        self._c().execute(
+            "UPDATE music_items SET status=?, updated_at=datetime('now')"
+            " WHERE source_path=?", (status, source_path))
+        self._conn.commit()
+
+    def clear_music_items(self) -> None:
+        self._c().execute("DELETE FROM music_items")
+        self._conn.commit()
+
+    # ── Book items ──────────────────────────────────────────────────────
+    def upsert_book_item(self, source_path: str, filename: str,
+                         title: str = "", author: str = "",
+                         series: str = "", series_index: str = "",
+                         year: str = "", isbn: str = "",
+                         ol_key: str = "", fmt: str = "",
+                         status: str = "pending") -> None:
+        self._c().execute(
+            "INSERT INTO book_items"
+            "(source_path,filename,title,author,series,series_index,"
+            " year,isbn,ol_key,format,status)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(source_path) DO UPDATE SET"
+            " filename=excluded.filename, title=excluded.title,"
+            " author=excluded.author, series=excluded.series,"
+            " series_index=excluded.series_index, year=excluded.year,"
+            " isbn=excluded.isbn, ol_key=excluded.ol_key,"
+            " format=excluded.format, status=excluded.status,"
+            " updated_at=datetime('now')",
+            (source_path, filename, title, author, series, series_index,
+             year, isbn, ol_key, fmt, status))
+        self._conn.commit()
+
+    def get_book_items(self, status: str | None = None) -> list[dict]:
+        q, p = "SELECT * FROM book_items WHERE 1=1", []
+        if status:
+            q += " AND status=?"; p.append(status)
+        return [dict(r) for r in
+                self._c().execute(q + " ORDER BY author, series, title", p)]
+
+    def set_book_rename_choice(self, source_path: str, title: str,
+                               author: str, series: str = "",
+                               series_index: str = "", year: str = "",
+                               source: str = "user") -> None:
+        self._c().execute(
+            "INSERT INTO book_rename_choices"
+            "(source_path,title,author,series,series_index,year,source)"
+            " VALUES(?,?,?,?,?,?,?)"
+            " ON CONFLICT(source_path) DO UPDATE SET"
+            " title=excluded.title, author=excluded.author,"
+            " series=excluded.series, series_index=excluded.series_index,"
+            " year=excluded.year, source=excluded.source",
+            (source_path, title, author, series, series_index, year, source))
+        self._conn.commit()
+
+    def get_book_rename_choice(self, source_path: str) -> dict | None:
+        row = self._c().execute(
+            "SELECT * FROM book_rename_choices WHERE source_path=?",
+            (source_path,)).fetchone()
+        return dict(row) if row else None
+
+    def update_book_item_status(self, source_path: str, status: str) -> None:
+        self._c().execute(
+            "UPDATE book_items SET status=?, updated_at=datetime('now')"
+            " WHERE source_path=?", (status, source_path))
+        self._conn.commit()
+
+    def clear_book_items(self) -> None:
+        self._c().execute("DELETE FROM book_items")
         self._conn.commit()
 
     # ── Stats ───────────────────────────────────────────────────────────

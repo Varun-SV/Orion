@@ -18,6 +18,8 @@ from ui.scan_panel import ScanPanel
 from ui.rename_panel import RenamePanel
 from ui.settings_panel import SettingsPanel
 from ui.log_panel import LogPanel
+from ui.music_panel import MusicPanel
+from ui.books_panel import BooksPanel
 
 
 def _make_icon(glyph: str, size: int = 22) -> QIcon:
@@ -82,10 +84,12 @@ class MainWindow(QMainWindow):
         v.addWidget(logo)
 
         defs = [
-            ("⊞", "Dashboard",  0),
-            ("⌕", "Scan",       1),
-            ("✎", "Rename",     2),
-            ("⚙", "Settings",   3),
+            ("⊞", "Dashboard",      0),
+            ("⌕", "Scan",           1),
+            ("✎", "Rename & Move",  2),
+            ("♪", "Music",          3),
+            ("📖", "Books",         4),
+            ("⚙", "Settings",       5),
         ]
         self._nav_buttons: list[QPushButton] = []
         for glyph, tip, idx in defs:
@@ -97,7 +101,7 @@ class MainWindow(QMainWindow):
         v.addStretch()
 
         log_btn = SidebarButton("≡", "Activity log")
-        log_btn.clicked.connect(lambda: self._switch(4))
+        log_btn.clicked.connect(lambda: self._switch(6))
         self._nav_buttons.append(log_btn)
         v.addWidget(log_btn)
         return sidebar
@@ -108,10 +112,12 @@ class MainWindow(QMainWindow):
         dashboard = DashboardPanel(self._db, self._config)
         scan      = ScanPanel(self._db, self._config)
         rename    = RenamePanel(self._db, self._config)
+        music     = MusicPanel(self._db, self._config)
+        books     = BooksPanel(self._db, self._config)
         settings  = SettingsPanel(self._db, self._config)
         log       = LogPanel(self._db)
 
-        self._panels = [dashboard, scan, rename, settings, log]
+        self._panels = [dashboard, scan, rename, music, books, settings, log]
         for p in self._panels:
             self._stack.addWidget(p)
 

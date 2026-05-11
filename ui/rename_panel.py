@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QFrame, QScrollArea,
     QSplitter, QProgressBar, QSizePolicy, QLineEdit, QInputDialog,
+    QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QAbstractItemView, QDialog,
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
 from PyQt6.QtGui import QColor, QPixmap, QImage
@@ -140,6 +142,13 @@ class RenamePanel(QWidget):
         self._prog_bar.setFixedHeight(3)
         self._prog_bar.setTextVisible(False)
         tl.addWidget(self._prog_bar, 1)
+        self._dry_run_chk = QCheckBox("Dry run")
+        self._dry_run_chk.setToolTip("Preview moves without touching the filesystem")
+        tl.addWidget(self._dry_run_chk)
+        self._inplace_chk = QCheckBox("In-place")
+        self._inplace_chk.setToolTip(
+            "Reorganise folders within the source directory instead of moving to destination")
+        tl.addWidget(self._inplace_chk)
         self._approve_btn = QPushButton("Approve all auto-matched")
         self._approve_btn.setObjectName("btn_accent")
         self._approve_btn.clicked.connect(self._approve_all_auto)
@@ -433,12 +442,22 @@ class RenamePanel(QWidget):
         choices = {r["original_name"]: r["chosen_name"]
                    for r in self._db.get_all_rename_choices()}
         all_items = self._db.get_scan_items()
-        # Only move items that have a confirmed rename choice and aren't done yet
         items = [it for it in all_items
                  if it["name"] in choices
                  and it["status"] not in ("moved", "organised")]
         if not items:
             self._prog_lbl.setText("No resolved items to move.")
+            return
+
+        dry     = self._dry_run_chk.isChecked()
+        inplace = self._inplace_chk.isChecked()
+
+        if dry:
+            self._show_dry_run_preview(items, choices, inplace)
+            return
+
+        if inplace:
+            self._start_inplace_move(items, choices)
             return
 
         dsts = self._db.get_destinations()
@@ -452,6 +471,52 @@ class RenamePanel(QWidget):
         self._prog_bar.setMaximum(len(items))
         self._prog_bar.setValue(0)
         self._move_worker.start()
+
+    def _show_dry_run_preview(self, items: list[dict],
+                              choices: dict[str, str],
+                              inplace: bool) -> None:
+        from pathlib import Path
+        from core.mover import Mover
+        mover    = Mover(self._db)
+        dsts     = self._db.get_destinations()
+        cats     = self._db.get_categories()
+        previews: list[tuple[str, str]] = []
+        for it in items:
+            src      = Path(it["path"])
+            new_name = choices.get(it["name"], it["name"])
+            if inplace:
+                dst_dir = src.parent
+            else:
+                dst_dir = mover.compute_destination(
+                    it["path"], it["detected_category"], dsts, cats)
+                if dst_dir is None:
+                    continue
+            s, d = mover.preview_move(src, dst_dir, new_name)
+            previews.append((s, d))
+        dlg = _DryRunDialog(previews, self)
+        dlg.exec()
+
+    def _start_inplace_move(self, items: list[dict],
+                            choices: dict[str, str]) -> None:
+        from pathlib import Path
+        from core.mover import Mover
+        from core.utils import sanitize_windows_name
+        mover = Mover(self._db)
+        moved = errors = 0
+        for it in items:
+            src      = Path(it["path"])
+            new_name = sanitize_windows_name(choices.get(it["name"], it["name"]))
+            ok = mover.move(src, src.parent, new_name)
+            if ok:
+                self._db.update_scan_item_status(it["id"], "moved")
+                moved += 1
+            else:
+                errors += 1
+        parts = [f"{moved} moved"]
+        if errors:
+            parts.append(f"{errors} failed")
+        self._prog_lbl.setText(", ".join(parts))
+        self.refresh()
 
     def _on_move_progress(self, current: int, total: int, path: str) -> None:
         self._prog_bar.setMaximum(total)
@@ -474,3 +539,25 @@ class RenamePanel(QWidget):
     def on_shown(self) -> None:
         self._refresh_renamer()   # pick up any API key changes from Settings
         self.refresh()
+
+
+class _DryRunDialog(QDialog):
+    def __init__(self, previews: list[tuple[str, str]], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Dry run — planned operations")
+        self.setMinimumSize(900, 420)
+        v = QVBoxLayout(self)
+        lbl = QLabel(f"{len(previews)} folder(s) would be moved/renamed:")
+        lbl.setStyleSheet("color:rgba(255,255,255,0.5); font-size:12px;")
+        v.addWidget(lbl)
+        tbl = QTableWidget(len(previews), 2)
+        tbl.setHorizontalHeaderLabels(["Source", "Destination"])
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        for r, (src, dst) in enumerate(previews):
+            tbl.setItem(r, 0, QTableWidgetItem(src))
+            tbl.setItem(r, 1, QTableWidgetItem(dst))
+        v.addWidget(tbl, 1)
+        ok = QPushButton("Close")
+        ok.clicked.connect(self.accept)
+        v.addWidget(ok)

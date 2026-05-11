@@ -1,6 +1,9 @@
 """
 File/folder moving — same-drive (os.rename, instant) vs
 cross-drive (shutil.move, copies bytes).
+
+In-place mode: reorganises files inside their existing source folder into
+the expected subfolder structure without moving them to a new destination.
 """
 from __future__ import annotations
 import os, shutil, logging
@@ -82,3 +85,21 @@ class Mover:
             log.error("Move failed %s → %s: %s", src, dst, exc)
             self._db.add_log("move", str(src), str(exc), "error")
             return False
+
+    def move_inplace(self, src: Path, subfolder_parts: list[str],
+                     new_name: str | None = None) -> bool:
+        """
+        Reorganise *src* within its own source folder.
+        *subfolder_parts* are joined relative to the item's parent directory.
+        Example: move_inplace(song.mp3, ["Artist", "Album (2020)"], "01 - Title.mp3")
+        moves  /source/random/song.mp3 → /source/random/Artist/Album (2020)/01 - Title.mp3
+        """
+        safe_parts = [sanitize_windows_name(p) for p in subfolder_parts if p]
+        dst_dir    = src.parent.joinpath(*safe_parts) if safe_parts else src.parent
+        return self.move(src, dst_dir, new_name)
+
+    def preview_move(self, src: Path, dst_dir: Path,
+                     new_name: str | None = None) -> tuple[str, str]:
+        """Return (src_str, dst_str) without touching the filesystem."""
+        name = sanitize_windows_name(new_name or src.name)
+        return str(src), str(dst_dir / name)

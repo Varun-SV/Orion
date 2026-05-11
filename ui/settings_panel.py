@@ -164,12 +164,12 @@ class SettingsPanel(QWidget):
 
     def _insert_cat_combos(self, r: int, mtype: str, api: str, dest: str) -> None:
         mt = QComboBox()
-        for t in ("movie", "series", "anime", "anime_film"):
+        for t in ("movie", "series", "anime", "anime_film", "music", "book"):
             mt.addItem(t)
         mt.setCurrentText(mtype)
         self._cat_tbl.setCellWidget(r, 1, mt)
         ap = QComboBox()
-        for a in ("tmdb", "anilist", "anidb", "both"):
+        for a in ("tmdb", "anilist", "anidb", "both", "musicbrainz", "openlibrary"):
             ap.addItem(a)
         ap.setCurrentText(api)
         self._cat_tbl.setCellWidget(r, 2, ap)
@@ -232,6 +232,10 @@ class SettingsPanel(QWidget):
             ("AniDB Client ID",
              "Register at anidb.net/software/add — anime episode title fallback.",
              "anidb_client"),
+            ("AcoustID API Key",
+             "Free at acoustid.org/login — audio fingerprint lookup for music identification. "
+             "Requires Chromaprint (fpcalc) to be installed.",
+             "acoustid"),
         ]:
             card = QFrame()
             card.setObjectName("card")
