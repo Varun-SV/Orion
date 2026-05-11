@@ -28,11 +28,10 @@ def main() -> None:
     app.setQuitOnLastWindowClosed(False)   # stay alive in system tray
     app.setStyleSheet(DARK_STYLESHEET)
 
-    config = Config()
-    db     = Database(config.db_path)
+    config       = Config()
+    first_launch = config.is_first_launch()   # must be checked before db.open() creates the file
+    db           = Database(config.db_path)
     db.open()
-
-    first_launch = config.is_first_launch()
 
     if first_launch:
         from ui.wizard import SetupWizard
