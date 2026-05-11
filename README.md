@@ -18,38 +18,71 @@
 
 ## Screenshots
 
+### Setup
+
 <table>
   <tr>
-    <td align="center"><b>Setup wizard — Welcome</b></td>
+    <td align="center"><b>Welcome wizard</b></td>
+    <td align="center"><b>Category detection</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/01_wizard.png" alt="Setup wizard welcome" width="400"/></td>
+    <td><img src="screenshots/02_wizard_categories.png" alt="Wizard categories step" width="400"/></td>
+  </tr>
+</table>
+
+### Video panels
+
+<table>
+  <tr>
     <td align="center"><b>Dashboard</b></td>
+    <td align="center"><b>Movies</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/00_wizard.png" alt="Setup wizard welcome" width="400"/></td>
-    <td><img src="screenshots/new_01_dashboard.png" alt="Dashboard" width="400"/></td>
+    <td><img src="screenshots/03_dashboard.png" alt="Dashboard" width="400"/></td>
+    <td><img src="screenshots/04_movies.png" alt="Movies panel" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Movies panel</b></td>
-    <td align="center"><b>Series panel</b></td>
+    <td align="center"><b>Series</b></td>
+    <td align="center"><b>Anime</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/new_02_movies.png" alt="Movies panel" width="400"/></td>
-    <td><img src="screenshots/new_03_series.png" alt="Series panel" width="400"/></td>
+    <td><img src="screenshots/05_series.png" alt="Series panel" width="400"/></td>
+    <td><img src="screenshots/06_anime.png" alt="Anime panel" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Web Series panel</b></td>
-    <td align="center"><b>Music Library panel</b></td>
+    <td align="center"><b>Anime Films</b></td>
+    <td align="center"><b>Web Series</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/new_04_web_series.png" alt="Web Series panel" width="400"/></td>
-    <td><img src="screenshots/05_music.png" alt="Music Library panel" width="400"/></td>
+    <td><img src="screenshots/07_anime_films.png" alt="Anime Films panel" width="400"/></td>
+    <td><img src="screenshots/08_web_series.png" alt="Web Series panel" width="400"/></td>
+  </tr>
+</table>
+
+### Music & Books
+
+<table>
+  <tr>
+    <td align="center"><b>Music Library</b></td>
+    <td align="center"><b>Books Library</b></td>
   </tr>
   <tr>
-    <td align="center"><b>Books Library panel</b></td>
+    <td><img src="screenshots/09_music.png" alt="Music Library panel" width="400"/></td>
+    <td><img src="screenshots/10_books.png" alt="Books Library panel" width="400"/></td>
+  </tr>
+</table>
+
+### Settings & Log
+
+<table>
+  <tr>
     <td align="center"><b>Settings — API Keys</b></td>
+    <td align="center"><b>Activity log</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/06_books.png" alt="Books Library panel" width="400"/></td>
-    <td><img src="screenshots/new_05_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
+    <td><img src="screenshots/11_settings_apikeys.png" alt="Settings API Keys" width="400"/></td>
+    <td><img src="screenshots/12_log.png" alt="Activity log" width="400"/></td>
   </tr>
 </table>
 
