@@ -487,11 +487,13 @@ class VideoPanel(QWidget):
             card.selected.connect(self._on_card_selected)
             self._cards_layout.addWidget(card)
             self._cards.append(card)
+        self._cards_wrap.adjustSize()
 
     def _load_candidates_empty(self) -> None:
         lbl = QLabel("No API results. Use 'Enter manually' or 'Skip'.")
         lbl.setStyleSheet("color:rgba(255,255,255,0.3);font-size:12px;")
         self._cards_layout.addWidget(lbl)
+        self._cards_wrap.adjustSize()
 
     def _on_card_selected(self, candidate: Candidate) -> None:
         self._selected_candidate = candidate
@@ -506,6 +508,7 @@ class VideoPanel(QWidget):
             item = self._cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        self._cards_wrap.adjustSize()
 
     def _confirm_current(self) -> None:
         if not self._current or not self._selected_candidate:

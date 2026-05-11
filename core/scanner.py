@@ -59,29 +59,53 @@ class Scanner:
             category = (self._detect_category_deep(child, categories) if deep
                         else self._detect_category(child, categories))
 
-            media_type = self._category_media_type(category, categories)
-            if media_type in ("movie", "anime_film"):
-                leaves = collect_movie_leaves(child)
-                if len(leaves) == 1 and leaves[0] == child:
-                    r = ScanResult(str(child), child.name, "folder", category)
-                    results.append(r)
-                    self._db.add_scan_item(source_folder_id, str(child),
-                                           child.name, "folder", category, "", True)
-                else:
-                    for leaf in leaves:
-                        r = ScanResult(str(leaf), leaf.name, "folder",
-                                       category, str(child), True)
-                        results.append(r)
-                        self._db.add_scan_item(source_folder_id, str(leaf),
-                                               leaf.name, "folder", category,
-                                               str(child), True)
-            else:
-                r = ScanResult(str(child), child.name, "folder", category)
-                results.append(r)
-                self._db.add_scan_item(source_folder_id, str(child),
-                                       child.name, "folder", category, "", True)
+            # If the folder name matches the category name exactly it is a
+            # genre/type container (e.g. "TV Shows/" inside a Downloads folder).
+            # Recurse one level deeper so the actual show/movie folders become items.
+            if child.name.strip().lower() == category.strip().lower():
+                try:
+                    sub_items = sorted(child.iterdir(),
+                                       key=lambda p: p.name.lower())
+                except PermissionError:
+                    continue
+                for sub in sub_items:
+                    if not sub.is_dir():
+                        continue
+                    if progress_cb:
+                        progress_cb(f"{'Deep scanning' if deep else 'Scanning'}"
+                                    f" {child.name}/{sub.name}…")
+                    self._add_item(source_folder_id, sub, category,
+                                   categories, results)
+                continue
+
+            self._add_item(source_folder_id, child, category,
+                           categories, results)
 
         return results
+
+    def _add_item(self, source_folder_id: int, folder: Path,
+                  category: str, categories: list[dict],
+                  results: list[ScanResult]) -> None:
+        media_type = self._category_media_type(category, categories)
+        if media_type in ("movie", "anime_film"):
+            leaves = collect_movie_leaves(folder)
+            if len(leaves) == 1 and leaves[0] == folder:
+                results.append(ScanResult(str(folder), folder.name,
+                                          "folder", category))
+                self._db.add_scan_item(source_folder_id, str(folder),
+                                       folder.name, "folder", category, "", True)
+            else:
+                for leaf in leaves:
+                    results.append(ScanResult(str(leaf), leaf.name, "folder",
+                                              category, str(folder), True))
+                    self._db.add_scan_item(source_folder_id, str(leaf),
+                                           leaf.name, "folder", category,
+                                           str(folder), True)
+        else:
+            results.append(ScanResult(str(folder), folder.name,
+                                      "folder", category))
+            self._db.add_scan_item(source_folder_id, str(folder),
+                                   folder.name, "folder", category, "", True)
 
     def detect_categories_from_scan(self, root: Path) -> list[dict]:
         """
