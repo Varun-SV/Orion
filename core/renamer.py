@@ -76,7 +76,8 @@ class Renamer:
         if media_type == "movie" or api_pref in ("tmdb", "both"):
             candidates += self._tmdb.search_movie(title, year)
 
-        if media_type == "series" or (api_pref in ("tmdb", "both") and not candidates):
+        if media_type in ("series", "web_series") or (
+                api_pref in ("tmdb", "both") and not candidates):
             candidates += self._tmdb.search_tv(title, year)
 
         # Deduplicate by (name.lower(), year)

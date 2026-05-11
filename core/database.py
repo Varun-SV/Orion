@@ -256,6 +256,32 @@ class Database:
         self._conn.commit()
         return cur.lastrowid
 
+    def get_scan_items_for_media_types(self,
+                                       media_types: list[str]) -> list[dict]:
+        """Return scan items whose category has a media_type in *media_types*."""
+        cats = [c["name"] for c in self.get_categories()
+                if c["media_type"] in media_types]
+        if not cats:
+            return []
+        ph = ",".join("?" * len(cats))
+        return [dict(r) for r in
+                self._c().execute(
+                    f"SELECT * FROM scan_items"
+                    f" WHERE detected_category IN ({ph}) ORDER BY name",
+                    cats)]
+
+    def clear_scan_items_for_media_types(self,
+                                         media_types: list[str]) -> None:
+        """Delete only scan items whose category has a media_type in *media_types*."""
+        cats = [c["name"] for c in self.get_categories()
+                if c["media_type"] in media_types]
+        if not cats:
+            return
+        ph = ",".join("?" * len(cats))
+        self._c().execute(
+            f"DELETE FROM scan_items WHERE detected_category IN ({ph})", cats)
+        self._conn.commit()
+
     def get_scan_items(self, status: str | None = None,
                        category: str | None = None) -> list[dict]:
         q, p = "SELECT * FROM scan_items WHERE 1=1", []

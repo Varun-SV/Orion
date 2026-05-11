@@ -120,9 +120,10 @@ class MusicPanel(QWidget):
     def _check_fpcalc(self) -> None:
         if not shutil.which("fpcalc"):
             self._fpcalc_banner.setText(
-                "fpcalc not found — audio fingerprinting is disabled. "
-                "Install Chromaprint (sudo pacman -S chromaprint  or  "
-                "sudo apt install libchromaprint-tools) to enable deep identification.")
+                "fpcalc not found — AcoustID fingerprinting is disabled. "
+                "Orion will use AudD (if configured) then MusicBrainz text search as fallbacks. "
+                "To enable full fingerprinting: sudo pacman -S chromaprint  "
+                "or  sudo apt install libchromaprint-tools")
             self._fpcalc_banner.setVisible(True)
 
     def _start_scan(self) -> None:
@@ -137,7 +138,9 @@ class MusicPanel(QWidget):
 
         sfs  = self._db.get_source_folders()
         akey = self._config.get_api_key("acoustid")
-        self._worker = MusicScanWorker(self._db, sfs, acoustid_key=akey)
+        dkey = self._config.get_api_key("audd")
+        self._worker = MusicScanWorker(self._db, sfs,
+                                       acoustid_key=akey, audd_key=dkey)
         self._worker.progress.connect(self._on_progress)
         self._worker.item_found.connect(self._on_item_found)
         self._worker.complete.connect(self._on_complete)

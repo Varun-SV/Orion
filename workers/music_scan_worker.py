@@ -16,6 +16,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from core.database import Database
 from api.musicbrainz import MusicBrainzClient, RecordingResult
 from api.acoustid import fingerprint_file, lookup as acoustid_lookup, fpcalc_available
+from api.audd import AudDClient
 
 _AUDIO_EXTS = {".mp3", ".flac", ".m4a", ".ogg", ".wav", ".aac", ".opus",
                ".wma", ".alac", ".aiff"}
@@ -59,14 +60,17 @@ class MusicScanWorker(QThread):
     def __init__(self, db: Database,
                  source_folders: list[dict],
                  acoustid_key: str = "",
+                 audd_key: str = "",
                  use_fingerprint: bool = True) -> None:
         super().__init__()
         self._db              = db
         self._folders         = source_folders
         self._acoustid_key    = acoustid_key
+        self._audd_key        = audd_key
         self._use_fingerprint = use_fingerprint and fpcalc_available()
         self._abort           = False
         self._mb              = MusicBrainzClient()
+        self._audd            = AudDClient(audd_key) if audd_key else AudDClient()
 
     def stop(self) -> None:
         self._abort = True
@@ -110,13 +114,14 @@ class MusicScanWorker(QThread):
         if _tags_complete(tags):
             confidence = 0.8
         elif self._use_fingerprint:
+            # 1st attempt: AcoustID fingerprint → MusicBrainz
             fp_result = fingerprint_file(fpath)
             if fp_result:
                 fingerprint, duration = fp_result
                 results = acoustid_lookup(fingerprint, duration, self._acoustid_key)
                 if results and results[0].score >= 0.7:
-                    top     = results[0]
-                    rec     = self._mb.get_recording(top.recording_mbids[0])
+                    top = results[0]
+                    rec = self._mb.get_recording(top.recording_mbids[0])
                     if rec:
                         tags["title"]        = rec.title
                         tags["artist"]       = rec.artist
@@ -126,19 +131,39 @@ class MusicScanWorker(QThread):
                         tags["disc_number"]  = rec.disc_number
                         confidence           = top.score
                         mbid                 = rec.mbid
+
+            # 2nd attempt: AudD if AcoustID didn't find a confident match
+            if confidence < 0.7:
+                audd_result = self._audd.recognize_file(fpath)
+                if audd_result and audd_result.title:
+                    tags["title"]  = tags.get("title")  or audd_result.title
+                    tags["artist"] = tags.get("artist") or audd_result.artist
+                    tags["album"]  = tags.get("album")  or audd_result.album
+                    tags["year"]   = tags.get("year")   or audd_result.year
+                    confidence     = 0.75
         else:
-            # Fall back to text search by filename stem
-            stem = Path(fpath).stem
-            recs = self._mb.search_recordings(stem)
-            if recs:
-                rec = recs[0]
-                tags.setdefault("title",        rec.title)
-                tags.setdefault("artist",       rec.artist)
-                tags.setdefault("album",        rec.album)
-                tags.setdefault("year",         rec.year)
-                tags.setdefault("track_number", rec.track_number)
-                confidence = rec.score
-                mbid       = rec.mbid
+            # 1st attempt: AudD (no fpcalc needed)
+            audd_result = self._audd.recognize_file(fpath)
+            if audd_result and audd_result.title:
+                tags["title"]  = tags.get("title")  or audd_result.title
+                tags["artist"] = tags.get("artist") or audd_result.artist
+                tags["album"]  = tags.get("album")  or audd_result.album
+                tags["year"]   = tags.get("year")   or audd_result.year
+                confidence     = 0.75
+
+            # 2nd attempt: MusicBrainz text search as final fallback
+            if confidence < 0.5:
+                stem = Path(fpath).stem
+                recs = self._mb.search_recordings(stem)
+                if recs:
+                    rec = recs[0]
+                    tags.setdefault("title",        rec.title)
+                    tags.setdefault("artist",       rec.artist)
+                    tags.setdefault("album",        rec.album)
+                    tags.setdefault("year",         rec.year)
+                    tags.setdefault("track_number", rec.track_number)
+                    confidence = rec.score
+                    mbid       = rec.mbid
 
         p = Path(fpath)
         return {

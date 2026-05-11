@@ -14,12 +14,11 @@ from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor
 from core.config import Config
 from core.database import Database
 from ui.dashboard import DashboardPanel
-from ui.scan_panel import ScanPanel
-from ui.rename_panel import RenamePanel
-from ui.settings_panel import SettingsPanel
-from ui.log_panel import LogPanel
+from ui.video_panel import VideoPanel
 from ui.music_panel import MusicPanel
 from ui.books_panel import BooksPanel
+from ui.settings_panel import SettingsPanel
+from ui.log_panel import LogPanel
 
 
 def _make_icon(glyph: str, size: int = 22) -> QIcon:
@@ -83,17 +82,23 @@ class MainWindow(QMainWindow):
         logo.setStyleSheet("color: #00a4dc; font-size: 20px; margin-bottom: 8px;")
         v.addWidget(logo)
 
+        # Panel indices: 0=Dashboard 1=Movies 2=Series 3=Anime 4=AnimeFilms
+        #                5=WebSeries 6=Music 7=Books 8=Settings 9=Log
         defs = [
-            ("⊞", "Dashboard",      0),
-            ("⌕", "Scan",           1),
-            ("✎", "Rename & Move",  2),
-            ("♪", "Music",          3),
-            ("📖", "Books",         4),
-            ("⚙", "Settings",       5),
+            ("⊞",  "Dashboard",    0),
+            ("▶",  "Movies",       1),
+            ("☰",  "Series",       2),
+            ("◈",  "Anime",        3),
+            ("◼",  "Anime Films",  4),
+            ("⌂",  "Web Series",   5),
+            ("♪",  "Music",        6),
+            ("📖", "Books",        7),
+            ("⚙",  "Settings",     8),
         ]
         self._nav_buttons: list[QPushButton] = []
         for glyph, tip, idx in defs:
             btn = SidebarButton(glyph, tip)
+            btn.setFixedSize(QSize(44, 44))   # slightly smaller to fit 9 buttons
             btn.clicked.connect(lambda _, i=idx: self._switch(i))
             self._nav_buttons.append(btn)
             v.addWidget(btn)
@@ -101,7 +106,8 @@ class MainWindow(QMainWindow):
         v.addStretch()
 
         log_btn = SidebarButton("≡", "Activity log")
-        log_btn.clicked.connect(lambda: self._switch(6))
+        log_btn.setFixedSize(QSize(44, 44))
+        log_btn.clicked.connect(lambda: self._switch(9))
         self._nav_buttons.append(log_btn)
         v.addWidget(log_btn)
         return sidebar
@@ -109,21 +115,30 @@ class MainWindow(QMainWindow):
     def _build_content(self) -> QWidget:
         self._stack = QStackedWidget()
 
-        dashboard = DashboardPanel(self._db, self._config)
-        scan      = ScanPanel(self._db, self._config)
-        rename    = RenamePanel(self._db, self._config)
-        music     = MusicPanel(self._db, self._config)
-        books     = BooksPanel(self._db, self._config)
-        settings  = SettingsPanel(self._db, self._config)
-        log       = LogPanel(self._db)
+        dashboard  = DashboardPanel(self._db, self._config)
+        movies     = VideoPanel(self._db, self._config,
+                                "Movies",     ["movie"])
+        series     = VideoPanel(self._db, self._config,
+                                "Series",     ["series"])
+        anime      = VideoPanel(self._db, self._config,
+                                "Anime",      ["anime"])
+        anime_film = VideoPanel(self._db, self._config,
+                                "Anime Films", ["anime_film"])
+        web_series = VideoPanel(self._db, self._config,
+                                "Web Series",  ["web_series"])
+        music      = MusicPanel(self._db, self._config)
+        books      = BooksPanel(self._db, self._config)
+        settings   = SettingsPanel(self._db, self._config)
+        log        = LogPanel(self._db)
 
-        self._panels = [dashboard, scan, rename, music, books, settings, log]
+        self._panels = [dashboard, movies, series, anime, anime_film,
+                        web_series, music, books, settings, log]
         for p in self._panels:
             self._stack.addWidget(p)
 
-        # Cross-panel connections
-        scan.scan_complete.connect(rename.refresh)
-        scan.scan_complete.connect(dashboard.refresh)
+        # Refresh dashboard after any per-panel scan completes
+        for panel in (movies, series, anime, anime_film, web_series):
+            panel.scan_complete.connect(dashboard.refresh)
 
         self._switch(0)
         return self._stack
@@ -218,6 +233,8 @@ class MainWindow(QMainWindow):
         if self._config.has_api_key("anidb_client"):
             parts.append("AniDB ✓")
         parts.append("AniList ✓")
+        if self._config.has_api_key("audd"):
+            parts.append("AudD ✓")
         self._api_lbl.setText("  ".join(parts))
 
     def update_api_status(self) -> None:

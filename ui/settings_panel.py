@@ -164,7 +164,8 @@ class SettingsPanel(QWidget):
 
     def _insert_cat_combos(self, r: int, mtype: str, api: str, dest: str) -> None:
         mt = QComboBox()
-        for t in ("movie", "series", "anime", "anime_film", "music", "book"):
+        for t in ("movie", "series", "anime", "anime_film",
+                  "web_series", "music", "book"):
             mt.addItem(t)
         mt.setCurrentText(mtype)
         self._cat_tbl.setCellWidget(r, 1, mt)
@@ -236,6 +237,10 @@ class SettingsPanel(QWidget):
              "Free at acoustid.org/login — audio fingerprint lookup for music identification. "
              "Requires Chromaprint (fpcalc) to be installed.",
              "acoustid"),
+            ("AudD API Token",
+             "Free tier (100/day) at dashboard.audd.io — audio recognition from file content; "
+             "used as a second-pass fallback when AcoustID returns a low-confidence match.",
+             "audd"),
         ]:
             card = QFrame()
             card.setObjectName("card")
