@@ -19,6 +19,7 @@ from core.renamer import Renamer
 from core.utils import sanitize_windows_name
 from api.tmdb import TMDbClient, Candidate
 from api.anilist import AniListClient
+from api.anidb import AniDBClient
 from workers.api_worker import ApiWorker
 from workers.move_worker import MoveWorker
 from workers.batch_approve_worker import BatchApproveWorker
@@ -114,8 +115,10 @@ class RenamePanel(QWidget):
         self._setup_ui()
 
     def _refresh_renamer(self) -> None:
-        tmdb           = TMDbClient(self._config.get_api_key("tmdb"))
-        self._renamer  = Renamer(self._db, tmdb, AniListClient())
+        tmdb          = TMDbClient(self._config.get_api_key("tmdb"))
+        anidb_name    = self._config.get_api_key("anidb_client")
+        anidb         = AniDBClient(anidb_name) if anidb_name else None
+        self._renamer = Renamer(self._db, tmdb, AniListClient(), anidb)
 
     def _setup_ui(self) -> None:
         v = QVBoxLayout(self)

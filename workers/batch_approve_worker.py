@@ -5,9 +5,10 @@ Fires parallel API requests up to the safe batch limit for the APIs
 in use, then falls back to sequential for the remaining items so we
 don't exceed rate limits.
 
-  TMDb  : ~40 req / 10 s  → safe parallel batch: 20
+  TMDb   : ~40 req / 10 s → safe parallel batch: 20
   AniList: ~90 req / min  → safe parallel batch: 15
-  AniDB  : aggressively rate-limited → safe parallel batch: 5
+  AniDB  : 1 req / 2 s, throttled inside AniDBClient via a class-level
+           lock — parallel workers still respect the limit, batch: 5
   mixed  : uses the most conservative limit
 """
 from __future__ import annotations
@@ -19,6 +20,7 @@ from core.renamer import Renamer
 from core.utils import sanitize_windows_name
 from api.tmdb import TMDbClient
 from api.anilist import AniListClient
+from api.anidb import AniDBClient
 
 
 _BATCH_LIMITS: dict[str, int] = {
@@ -38,11 +40,12 @@ class BatchApproveWorker(QThread):
     def __init__(self, db: Database, config: Config,
                  items: list[dict], categories: list[dict]) -> None:
         super().__init__()
-        self._db         = db
-        self._tmdb_key   = config.get_api_key("tmdb")
-        self._items      = items
-        self._cat_map    = {c["name"]: c for c in categories}
-        self._abort      = False
+        self._db           = db
+        self._tmdb_key     = config.get_api_key("tmdb")
+        self._anidb_client = config.get_api_key("anidb_client")
+        self._items        = items
+        self._cat_map      = {c["name"]: c for c in categories}
+        self._abort        = False
 
     def stop(self) -> None:
         self._abort = True
@@ -81,10 +84,12 @@ class BatchApproveWorker(QThread):
                     self.progress.emit(current, total, item["name"])
 
         # ── Sequential phase ──────────────────────────────────────────
+        anidb_seq   = AniDBClient(self._anidb_client) if self._anidb_client else None
         seq_renamer = Renamer(
             self._db,
             TMDbClient(self._tmdb_key),
             AniListClient(),
+            anidb_seq,
         )
         for item in sequential:
             if self._abort:
@@ -107,10 +112,12 @@ class BatchApproveWorker(QThread):
 
     def _fetch(self, item: dict) -> tuple[str, str, str] | None:
         """Create per-thread clients (requests.Session is not thread-safe to share)."""
+        anidb   = AniDBClient(self._anidb_client) if self._anidb_client else None
         renamer = Renamer(
             self._db,
             TMDbClient(self._tmdb_key),
             AniListClient(),
+            anidb,
         )
         return self._fetch_with(renamer, item)
 
