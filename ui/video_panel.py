@@ -35,7 +35,8 @@ class _PosterSignal(QObject):
 
 
 class CandidateCard(QFrame):
-    selected = pyqtSignal(object)
+    selected   = pyqtSignal(object)
+    confirmed  = pyqtSignal(object)   # double-click → select + confirm immediately
 
     def __init__(self, candidate: Candidate, with_year: bool, parent=None):
         super().__init__(parent)
@@ -106,6 +107,10 @@ class CandidateCard(QFrame):
     def mousePressEvent(self, event) -> None:
         self.selected.emit(self._candidate)
         super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        self.confirmed.emit(self._candidate)
+        super().mouseDoubleClickEvent(event)
 
 
 class VideoPanel(QWidget):
@@ -294,7 +299,6 @@ class VideoPanel(QWidget):
         self._cards_layout.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(self._cards_wrap)
-        rv.addStretch()
         rv.addWidget(scroll)
 
         actions = QHBoxLayout()
@@ -311,6 +315,7 @@ class VideoPanel(QWidget):
         self._confirm_btn.clicked.connect(self._confirm_current)
         actions.addWidget(self._confirm_btn)
         rv.addLayout(actions)
+        rv.addStretch()
         splitter.addWidget(right)
 
         splitter.setSizes([240, 700])
@@ -485,6 +490,7 @@ class VideoPanel(QWidget):
         for c in candidates:
             card = CandidateCard(c, with_year)
             card.selected.connect(self._on_card_selected)
+            card.confirmed.connect(self._on_card_confirmed)
             self._cards_layout.addWidget(card)
             self._cards.append(card)
         QTimer.singleShot(0, self._fit_cards_wrap)
@@ -498,9 +504,12 @@ class VideoPanel(QWidget):
     def _on_card_selected(self, candidate: Candidate) -> None:
         self._selected_candidate = candidate
         for card in self._cards:
-            card.highlight(False)
-        self.sender().highlight(True)
+            card.highlight(card._candidate is candidate)
         self._confirm_btn.setEnabled(True)
+
+    def _on_card_confirmed(self, candidate: Candidate) -> None:
+        self._on_card_selected(candidate)
+        self._confirm_current()
 
     def _fit_cards_wrap(self) -> None:
         sh = self._cards_wrap.sizeHint()

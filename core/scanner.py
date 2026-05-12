@@ -59,10 +59,10 @@ class Scanner:
             category = (self._detect_category_deep(child, categories) if deep
                         else self._detect_category(child, categories))
 
-            # If the folder name matches the category name exactly it is a
-            # genre/type container (e.g. "TV Shows/" inside a Downloads folder).
-            # Recurse one level deeper so the actual show/movie folders become items.
-            if child.name.strip().lower() == category.strip().lower():
+            # If the folder is a genre/type container (e.g. "Series/", "TV Shows/")
+            # detected by structure rather than by name, recurse one level so the
+            # actual show/movie folders inside become the scan items.
+            if self._is_genre_container(child):
                 try:
                     sub_items = sorted(child.iterdir(),
                                        key=lambda p: p.name.lower())
@@ -160,6 +160,29 @@ class Scanner:
         return suggestions
 
     # ── Internal ───────────────────────────────────────────────────────
+    def _is_genre_container(self, folder: Path) -> bool:
+        """True if folder is a genre/type container (e.g. 'Series/', 'Movies/')
+        rather than an actual media title.
+
+        Detection is structure-based:
+        - A real media folder always has video files at its root OR season subdirectories.
+        - A container has neither, but a majority of its subdirectories look like
+          actual media items (they have video files or season subdirectories).
+        """
+        if has_video_files(folder) or is_series_folder(folder):
+            return False
+        try:
+            children = [p for p in folder.iterdir() if p.is_dir()]
+        except PermissionError:
+            return False
+        if not children:
+            return False
+        media_like = sum(
+            1 for c in children
+            if has_video_files(c) or is_series_folder(c)
+        )
+        return media_like >= max(1, len(children) // 2)
+
     def _detect_category(self, folder: Path, categories: list[dict]) -> str:
         """Match folder against known categories, fall back to name-regex."""
         name_lower = folder.name.lower()
