@@ -33,9 +33,25 @@ class SidebarButton(QPushButton):
         super().__init__(icon_char, parent)
         self.setToolTip(tooltip)
         self.setCheckable(True)
-        self.setFixedSize(QSize(48, 48))
+        self.setFixedSize(QSize(44, 44))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFont(self.font())
+        self._badge = QLabel("", self)
+        self._badge.setStyleSheet(
+            "background:#ff453a; border-radius:7px; color:#fff;"
+            "font-size:8px; font-weight:bold; padding:1px 3px;")
+        self._badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._badge.setVisible(False)
+        self._badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def set_badge(self, count: int) -> None:
+        if count > 0:
+            self._badge.setText(str(count) if count < 100 else "99+")
+            self._badge.adjustSize()
+            self._badge.move(self.width() - self._badge.width() - 2, 2)
+            self._badge.raise_()
+            self._badge.setVisible(True)
+        else:
+            self._badge.setVisible(False)
 
 
 class MainWindow(QMainWindow):
@@ -139,8 +155,10 @@ class MainWindow(QMainWindow):
         # Refresh dashboard after any per-panel scan completes
         for panel in (movies, series, anime, anime_film, web_series):
             panel.scan_complete.connect(dashboard.refresh)
+            panel.scan_complete.connect(self._update_badges)
 
         self._switch(0)
+        self._update_badges()
         return self._stack
 
     def _build_status_bar(self) -> None:
@@ -239,6 +257,20 @@ class MainWindow(QMainWindow):
 
     def update_api_status(self) -> None:
         self._refresh_api_status()
+
+    def _update_badges(self) -> None:
+        resolved = {r["original_name"] for r in self._db.get_all_rename_choices()}
+        # Nav buttons 1–5 correspond to the 5 video panels (panels[1]–panels[5])
+        for nav_idx in range(1, 6):
+            panel = self._panels[nav_idx]
+            if not hasattr(panel, "_media_types"):
+                continue
+            items = self._db.get_scan_items_for_media_types(panel._media_types)
+            pending = sum(
+                1 for i in items
+                if i["name"] not in resolved and i["status"] != "moved"
+            )
+            self._nav_buttons[nav_idx].set_badge(pending)
 
     # ── Window management ──────────────────────────────────────────────
     def show_normal(self) -> None:

@@ -17,6 +17,7 @@ query ($search: String) {
       coverImage { medium }
       format
       episodes
+      averageScore
     }
   }
 }
@@ -51,12 +52,15 @@ class AniListClient:
                 name    = english or romaji
                 yr      = (m.get("startDate") or {}).get("year")
                 cover   = (m.get("coverImage") or {}).get("medium")
+                raw     = m.get("averageScore") or 0
+                score   = round(raw / 10, 1) if raw else None
                 out.append(Candidate(
                     name=name, year=yr, media_type="anime",
                     tmdb_id=m.get("id"),
                     poster_url=cover,
                     source="anilist",
                     extra={"romaji": romaji, "episodes": m.get("episodes")},
+                    score=score,
                 ))
             return out
         except Exception:

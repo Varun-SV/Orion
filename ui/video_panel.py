@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QDialog,
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
-from PyQt6.QtGui import QColor, QPixmap, QImage
+from PyQt6.QtGui import QColor, QPixmap, QImage, QShortcut, QKeySequence
+from guessit import guessit as _guessit
 
 from core.config import Config
 from core.database import Database
@@ -73,6 +74,15 @@ class CandidateCard(QFrame):
         v.addWidget(name_lbl)
         v.addStretch()
 
+        parts = [candidate.display(True), f"Source: {candidate.source.upper()}"]
+        if candidate.score is not None:
+            parts.append(f"Rating: {candidate.score}/10")
+        if candidate.extra.get("episodes"):
+            parts.append(f"Episodes: {candidate.extra['episodes']}")
+        if candidate.extra.get("romaji") and candidate.extra["romaji"] != candidate.name:
+            parts.append(f"Romaji: {candidate.extra['romaji']}")
+        self.setToolTip("\n".join(parts))
+
         if candidate.poster_url:
             self._load_poster(candidate.poster_url)
 
@@ -128,11 +138,12 @@ class VideoPanel(QWidget):
         self._panel_title  = panel_title
         self._media_types  = media_types
 
-        self._items:        list[dict] = []
-        self._current:      dict | None = None
-        self._cards:        list[CandidateCard] = []
-        self._suggestions:  list[dict] = []
-        self._renamer:      Renamer | None = None
+        self._items:             list[dict] = []
+        self._current:           dict | None = None
+        self._cards:             list[CandidateCard] = []
+        self._suggestions:       list[dict] = []
+        self._renamer:           Renamer | None = None
+        self._focused_card_idx:  int = -1
 
         self._scan_worker:  ScanWorker | None = None
         self._api_worker:   ApiWorker | None = None
@@ -282,6 +293,21 @@ class VideoPanel(QWidget):
         self._loading_lbl.setVisible(False)
         rv.addWidget(self._loading_lbl)
 
+        search_row = QHBoxLayout()
+        search_row.setSpacing(6)
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText("Search term…")
+        self._search_edit.setStyleSheet(
+            "background:#1e1e1e; border:1px solid rgba(255,255,255,0.12);"
+            "border-radius:4px; color:#fff; padding:4px 8px; font-size:12px;")
+        self._search_edit.returnPressed.connect(self._search_manual)
+        search_row.addWidget(self._search_edit, 1)
+        self._search_btn = QPushButton("Search ↵")
+        self._search_btn.setFixedWidth(82)
+        self._search_btn.clicked.connect(self._search_manual)
+        search_row.addWidget(self._search_btn)
+        rv.addLayout(search_row)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(False)
         scroll.setHorizontalScrollBarPolicy(
@@ -318,8 +344,26 @@ class VideoPanel(QWidget):
         rv.addStretch()
         splitter.addWidget(right)
 
-        splitter.setSizes([240, 700])
-        v.addWidget(splitter, 1)
+        self._splitter = splitter  # keep reference for save/restore
+        saved = self._config.get_pref(f"splitter_{self._panel_title}")
+        self._splitter.setSizes(saved if saved and len(saved) == 2 else [240, 700])
+        self._splitter.splitterMoved.connect(
+            lambda *_: self._config.set_pref(
+                f"splitter_{self._panel_title}", self._splitter.sizes()))
+        v.addWidget(self._splitter, 1)
+
+        # Keyboard shortcuts
+        for key, slot in [
+            (Qt.Key.Key_Return, self._shortcut_confirm),
+            (Qt.Key.Key_Enter,  self._shortcut_confirm),
+            (Qt.Key.Key_S,      self._shortcut_skip),
+            (Qt.Key.Key_M,      self._shortcut_manual),
+            (Qt.Key.Key_Right,  self._next_card),
+            (Qt.Key.Key_Left,   self._prev_card),
+        ]:
+            sc = QShortcut(QKeySequence(key), self)
+            sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            sc.activated.connect(slot)
 
     # ── Scan ──────────────────────────────────────────────────────────
     def _categories_for_panel(self) -> list[dict]:
@@ -443,6 +487,8 @@ class VideoPanel(QWidget):
         self._item_title.setText(item["name"])
         self._item_sub.setText(item["path"])
         self._clear_cards()
+        info = _guessit(item["name"])
+        self._search_edit.setText(str(info.get("title", item["name"])))
 
         saved = self._db.get_rename_choice(item["name"])
         if saved:
@@ -517,6 +563,7 @@ class VideoPanel(QWidget):
             self._cards_wrap.resize(sh)
 
     def _clear_cards(self) -> None:
+        self._focused_card_idx = -1
         self._cards = []
         while self._cards_layout.count():
             item = self._cards_layout.takeAt(0)
@@ -535,9 +582,61 @@ class VideoPanel(QWidget):
         self._db.set_rename_choice(self._current["name"], name, mtype, "user")
         self._populate_list()
         self._update_toolbar()
-        row = self._item_list.currentRow()
-        if row + 1 < self._item_list.count():
-            self._item_list.setCurrentRow(row + 1)
+        self._advance_to_next_pending()
+
+    def _search_manual(self) -> None:
+        query = self._search_edit.text().strip()
+        if not query or not self._current:
+            return
+        if self._renamer is None:
+            self._refresh_renamer()
+        cat = self._db.get_category(self._current["detected_category"])
+        self._clear_cards()
+        self._loading_lbl.setVisible(True)
+        self._api_worker = ApiWorker(
+            self._renamer, query,
+            cat["media_type"] if cat else self._media_types[0],
+            cat["api_pref"] if cat else "tmdb",
+        )
+        self._api_worker.candidates_ready.connect(self._on_candidates)
+        self._api_worker.error.connect(
+            lambda e: self._loading_lbl.setText(f"Error: {e}"))
+        self._api_worker.start()
+
+    def _advance_to_next_pending(self) -> None:
+        resolved = {r["original_name"] for r in self._db.get_all_rename_choices()}
+        for row in range(self._item_list.currentRow() + 1, self._item_list.count()):
+            li = self._item_list.item(row)
+            if not li:
+                continue
+            item = li.data(Qt.ItemDataRole.UserRole)
+            if item and item["name"] not in resolved and item["status"] != "moved":
+                self._item_list.setCurrentRow(row)
+                return
+
+    def _next_card(self) -> None:
+        if not self._cards:
+            return
+        self._focused_card_idx = min(self._focused_card_idx + 1, len(self._cards) - 1)
+        self._on_card_selected(self._cards[self._focused_card_idx]._candidate)
+
+    def _prev_card(self) -> None:
+        if not self._cards:
+            return
+        self._focused_card_idx = max(self._focused_card_idx - 1, 0)
+        self._on_card_selected(self._cards[self._focused_card_idx]._candidate)
+
+    def _shortcut_confirm(self) -> None:
+        if not self._search_edit.hasFocus():
+            self._confirm_current()
+
+    def _shortcut_skip(self) -> None:
+        if not self._search_edit.hasFocus():
+            self._skip_item()
+
+    def _shortcut_manual(self) -> None:
+        if not self._search_edit.hasFocus():
+            self._manual_entry()
 
     def _skip_item(self) -> None:
         if not self._current:

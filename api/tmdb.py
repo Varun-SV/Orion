@@ -18,6 +18,7 @@ class Candidate:
     poster_url: str | None   = None
     source:     str          = "tmdb"
     extra:      dict         = field(default_factory=dict)
+    score:      float | None = None
 
     def display(self, with_year: bool = True) -> str:
         if with_year and self.year:
@@ -48,14 +49,17 @@ class TMDbClient:
             data = self._get("search/movie", params)
             out  = []
             for item in data.get("results", [])[:6]:
-                name   = item.get("title") or item.get("original_title", "")
-                date   = item.get("release_date", "")
-                yr     = int(date[:4]) if date else None
-                poster = item.get("poster_path")
+                name      = item.get("title") or item.get("original_title", "")
+                date      = item.get("release_date", "")
+                yr        = int(date[:4]) if date else None
+                poster    = item.get("poster_path")
+                raw_score = item.get("vote_average") or 0.0
+                score     = round(float(raw_score), 1) if raw_score else None
                 out.append(Candidate(
                     name=name, year=yr, media_type="movie",
                     tmdb_id=item.get("id"),
                     poster_url=f"{POSTER_BASE}{poster}" if poster else None,
+                    score=score,
                 ))
             return out
         except Exception:
@@ -71,14 +75,17 @@ class TMDbClient:
             data = self._get("search/tv", params)
             out  = []
             for item in data.get("results", [])[:6]:
-                name   = item.get("name") or item.get("original_name", "")
-                date   = item.get("first_air_date", "")
-                yr     = int(date[:4]) if date else None
-                poster = item.get("poster_path")
+                name      = item.get("name") or item.get("original_name", "")
+                date      = item.get("first_air_date", "")
+                yr        = int(date[:4]) if date else None
+                poster    = item.get("poster_path")
+                raw_score = item.get("vote_average") or 0.0
+                score     = round(float(raw_score), 1) if raw_score else None
                 out.append(Candidate(
                     name=name, year=yr, media_type="tv",
                     tmdb_id=item.get("id"),
                     poster_url=f"{POSTER_BASE}{poster}" if poster else None,
+                    score=score,
                 ))
             return out
         except Exception:
