@@ -6,7 +6,7 @@ Each panel scans only the categories matching its media_types list, shows only
 those items in the left list, and moves them to the appropriate destination.
 """
 from __future__ import annotations
-import io, threading
+import io, json, threading
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QFrame, QScrollArea,
@@ -18,8 +18,10 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject, QTimer
 from PyQt6.QtGui import QColor, QPixmap, QImage, QShortcut, QKeySequence
 from guessit import guessit as _guessit
 
+from core import server_link
 from core.config import Config
 from core.database import Database
+from core.nfo_writer import write_video_sidecars
 from core.renamer import Renamer
 from core.utils import sanitize_windows_name
 from api.tmdb import TMDbClient, Candidate
@@ -29,6 +31,7 @@ from workers.api_worker import ApiWorker
 from workers.move_worker import MoveWorker
 from workers.scan_worker import ScanWorker
 from workers.batch_approve_worker import BatchApproveWorker
+from workers.server_worker import DupCheckWorker
 
 
 class _PosterSignal(QObject):
@@ -149,6 +152,8 @@ class VideoPanel(QWidget):
         self._api_worker:   ApiWorker | None = None
         self._move_worker:  MoveWorker | None = None
         self._batch_worker: BatchApproveWorker | None = None
+        self._dup_worker:   DupCheckWorker | None = None
+        self._dup_query:    str = ""
 
         self._setup_ui()
 
@@ -183,6 +188,15 @@ class VideoPanel(QWidget):
         self._inplace_chk.setToolTip(
             "Reorganise inside the source folder instead of moving to destination")
         tl.addWidget(self._inplace_chk)
+        self._nfo_chk = QCheckBox("Write NFO + artwork")
+        self._nfo_chk.setToolTip(
+            "Write movie.nfo/tvshow.nfo and poster.jpg into each moved folder "
+            "so Jellyfin/Emby/Kodi pick up metadata without re-scraping")
+        self._nfo_chk.setChecked(
+            bool(self._config.get_pref(f"nfo_{self._panel_title}", False)))
+        self._nfo_chk.toggled.connect(
+            lambda on: self._config.set_pref(f"nfo_{self._panel_title}", on))
+        tl.addWidget(self._nfo_chk)
 
         self._approve_btn = QPushButton("Approve all auto-matched")
         self._approve_btn.setObjectName("btn_accent")
@@ -287,6 +301,16 @@ class VideoPanel(QWidget):
             "font-size:11px;color:rgba(255,255,255,0.35);font-family:monospace;")
         self._item_sub.setWordWrap(True)
         rv.addWidget(self._item_sub)
+
+        self._dup_lbl = QLabel("")
+        self._dup_lbl.setWordWrap(True)
+        self._dup_lbl.setStyleSheet(
+            "background:rgba(254,188,46,0.08);"
+            "border:1px solid rgba(254,188,46,0.25);"
+            "border-radius:5px;padding:5px 9px;"
+            "color:#febc2e;font-size:11px;")
+        self._dup_lbl.setVisible(False)
+        rv.addWidget(self._dup_lbl)
 
         self._loading_lbl = QLabel("Fetching candidates…")
         self._loading_lbl.setStyleSheet("color:#00a4dc;font-size:11px;")
@@ -489,6 +513,7 @@ class VideoPanel(QWidget):
         self._clear_cards()
         info = _guessit(item["name"])
         self._search_edit.setText(str(info.get("title", item["name"])))
+        self._start_dup_check(self._search_edit.text())
 
         saved = self._db.get_rename_choice(item["name"])
         if saved:
@@ -513,6 +538,34 @@ class VideoPanel(QWidget):
             lambda e: self._loading_lbl.setText(f"Error: {e}"))
         self._api_worker.start()
 
+    # ── Server duplicate check ─────────────────────────────────────────
+    def _start_dup_check(self, query: str) -> None:
+        """Warn if the item already exists in the Jellyfin/Emby library."""
+        self._dup_lbl.setVisible(False)
+        query = query.strip()
+        if not query:
+            return
+        if self._dup_worker and self._dup_worker.isRunning():
+            self._dup_worker.found.disconnect()
+        client = server_link.get_client(self._db, self._config)
+        if client is None:
+            return
+        types = ("Movie" if self._media_types[0] in ("movie", "anime_film")
+                 else "Series")
+        self._dup_query  = query
+        self._dup_worker = DupCheckWorker(client, query, types)
+        self._dup_worker.found.connect(self._on_dup_result)
+        self._dup_worker.start()
+
+    def _on_dup_result(self, query: str, matches: list) -> None:
+        if query != self._dup_query or not matches:
+            return
+        shown = ",  ".join(m.display() for m in matches[:3])
+        more  = f"  (+{len(matches) - 3} more)" if len(matches) > 3 else ""
+        self._dup_lbl.setText(f"⚠  Already in your media server library: "
+                              f"{shown}{more}")
+        self._dup_lbl.setVisible(True)
+
     def _on_candidates(self, candidates: list) -> None:
         self._loading_lbl.setVisible(False)
         if not candidates:
@@ -526,7 +579,8 @@ class VideoPanel(QWidget):
         if len(candidates) == 1:
             name = sanitize_windows_name(candidates[0].display(with_year))
             self._db.set_rename_choice(
-                self._current["name"], name, mtype, "auto")
+                self._current["name"], name, mtype, "auto",
+                Renamer.candidate_meta(candidates[0]))
             self._item_title.setText(
                 f"{self._current['name']}  →  {name}  (auto)")
             self._populate_list()
@@ -579,7 +633,9 @@ class VideoPanel(QWidget):
         with_year = mtype in ("movie", "anime_film")
         name = sanitize_windows_name(
             self._selected_candidate.display(with_year))
-        self._db.set_rename_choice(self._current["name"], name, mtype, "user")
+        self._db.set_rename_choice(
+            self._current["name"], name, mtype, "user",
+            Renamer.candidate_meta(self._selected_candidate))
         self._populate_list()
         self._update_toolbar()
         self._advance_to_next_pending()
@@ -718,7 +774,10 @@ class VideoPanel(QWidget):
 
         dsts = self._db.get_destinations()
         cats = self._db.get_categories()
-        self._move_worker = MoveWorker(self._db, items, dsts, cats, choices)
+        self._move_worker = MoveWorker(
+            self._db, items, dsts, cats, choices,
+            meta_map=self._choice_metas(),
+            write_nfo=self._nfo_chk.isChecked())
         self._move_worker.progress.connect(self._on_move_progress)
         self._move_worker.item_done.connect(lambda *_: None)
         self._move_worker.complete.connect(self._on_move_done)
@@ -755,7 +814,11 @@ class VideoPanel(QWidget):
                          choices: dict) -> None:
         from pathlib import Path
         from core.mover import Mover
-        mover = Mover(self._db)
+        mover     = Mover(self._db)
+        metas     = self._choice_metas()
+        write_nfo = self._nfo_chk.isChecked()
+        cat_types = {c["name"]: c["media_type"]
+                     for c in self._db.get_categories()}
         moved = errors = 0
         for it in items:
             src      = Path(it["path"])
@@ -765,13 +828,33 @@ class VideoPanel(QWidget):
             if ok:
                 self._db.update_scan_item_status(it["id"], "moved")
                 moved += 1
+                meta = metas.get(it["name"])
+                if write_nfo and meta:
+                    write_video_sidecars(
+                        src.parent / new_name,
+                        cat_types.get(it["detected_category"], "movie"),
+                        meta)
             else:
                 errors += 1
         parts = [f"{moved} moved"]
         if errors:
             parts.append(f"{errors} failed")
+        if moved and server_link.refresh_after_move(self._db, self._config):
+            parts.append("server refresh triggered")
         self._prog_lbl.setText(", ".join(parts))
         self.refresh()
+
+    def _choice_metas(self) -> dict[str, dict]:
+        """{original_name: candidate meta} for all saved choices."""
+        out: dict[str, dict] = {}
+        for r in self._db.get_all_rename_choices():
+            raw = r.get("meta_json") or ""
+            if raw:
+                try:
+                    out[r["original_name"]] = json.loads(raw)
+                except ValueError:
+                    pass
+        return out
 
     def _on_move_progress(self, current: int, total: int, _path: str) -> None:
         self._prog_bar.setMaximum(total)
@@ -785,6 +868,8 @@ class VideoPanel(QWidget):
         parts = [f"{moved} moved"]
         if failed:
             parts.append(f"{failed} failed")
+        if moved and server_link.refresh_after_move(self._db, self._config):
+            parts.append("server refresh triggered")
         self._prog_lbl.setText(", ".join(parts))
         self.refresh()
 

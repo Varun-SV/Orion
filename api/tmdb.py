@@ -60,6 +60,7 @@ class TMDbClient:
                     tmdb_id=item.get("id"),
                     poster_url=f"{POSTER_BASE}{poster}" if poster else None,
                     score=score,
+                    extra={"overview": item.get("overview", "")},
                 ))
             return out
         except Exception:
@@ -86,6 +87,7 @@ class TMDbClient:
                     tmdb_id=item.get("id"),
                     poster_url=f"{POSTER_BASE}{poster}" if poster else None,
                     score=score,
+                    extra={"overview": item.get("overview", "")},
                 ))
             return out
         except Exception:
@@ -100,6 +102,25 @@ class TMDbClient:
             return data.get("name", "")
         except Exception:
             return ""
+
+    def get_tv_details(self, tv_id: int) -> dict:
+        """Full TV show detail including the seasons list (episode counts)."""
+        if not self._key:
+            return {}
+        try:
+            return self._get(f"tv/{tv_id}", {})
+        except Exception:
+            return {}
+
+    def get_season_episodes(self, tv_id: int, season: int) -> list[dict]:
+        """All episodes of one season: [{episode_number, name, …}]."""
+        if not self._key:
+            return []
+        try:
+            data = self._get(f"tv/{tv_id}/season/{season}", {})
+            return data.get("episodes", [])
+        except Exception:
+            return []
 
     def validate_key(self) -> bool:
         if not self._key:

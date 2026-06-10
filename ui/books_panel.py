@@ -6,6 +6,7 @@ approve or correct rename choices, and organise into:
 Double-click a row to edit metadata manually.
 """
 from __future__ import annotations
+import threading
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -15,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+from core import artwork, server_link
 from core.config import Config
 from core.database import Database
 from core.mover import Mover
@@ -53,6 +55,15 @@ class BooksPanel(QWidget):
         self._dry_run_chk = QCheckBox("Dry run")
         self._dry_run_chk.setToolTip("Preview destination paths without moving files")
         hdr.addWidget(self._dry_run_chk)
+
+        self._cover_chk = QCheckBox("Save cover art")
+        self._cover_chk.setToolTip(
+            "Download the Open Library cover (by ISBN) as '<Title>.jpg' "
+            "next to each organised book")
+        self._cover_chk.setChecked(bool(self._config.get_pref("nfo_books", False)))
+        self._cover_chk.toggled.connect(
+            lambda on: self._config.set_pref("nfo_books", on))
+        hdr.addWidget(self._cover_chk)
 
         self._stop_btn = QPushButton("Stop")
         self._stop_btn.setObjectName("btn_danger")
@@ -197,6 +208,7 @@ class BooksPanel(QWidget):
         items = self._db.get_book_items()
         previews: list[tuple[str, str]] = []
         moved = errors = 0
+        covers: list[tuple[str, Path]] = []   # (isbn, dest jpg path)
 
         for item in items:
             choice = self._db.get_book_rename_choice(item["source_path"])
@@ -218,14 +230,32 @@ class BooksPanel(QWidget):
                 if ok:
                     self._db.update_book_item_status(item["source_path"], "moved")
                     moved += 1
+                    if item.get("isbn"):
+                        dst_dir = src.parent.joinpath(*parts)
+                        covers.append(
+                            (item["isbn"], dst_dir / (Path(fname).stem + ".jpg")))
                 else:
                     errors += 1
 
         if dry:
             self._show_dry_run(previews)
-        else:
-            self._prog_lbl.setText(f"Done — {moved} moved, {errors} failed.")
-            self._refresh_table()
+            return
+
+        status = [f"Done — {moved} moved, {errors} failed."]
+        if moved and self._cover_chk.isChecked() and covers:
+            threading.Thread(target=self._download_covers,
+                             args=(covers,), daemon=True).start()
+            status.append("Downloading covers in background…")
+        if moved and server_link.refresh_after_move(self._db, self._config):
+            status.append("Server refresh triggered.")
+        self._prog_lbl.setText("  ".join(status))
+        self._refresh_table()
+
+    def _download_covers(self, covers: list[tuple[str, Path]]) -> None:
+        done = sum(1 for isbn, dest in covers
+                   if artwork.save_book_cover(isbn, dest))
+        self._db.add_log("sidecar", f"{done}/{len(covers)} book cover(s)",
+                         "Open Library covers downloaded", "ok")
 
     def _show_dry_run(self, previews: list[tuple[str, str]]) -> None:
         from ui.music_panel import DryRunDialog

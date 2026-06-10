@@ -1,4 +1,4 @@
-"""Settings panel — Sources, Destinations, Categories, API Keys, File Naming, Subtitles."""
+"""Settings panel — Sources, Destinations, Categories, API Keys, Server, File Naming, Subtitles."""
 from __future__ import annotations
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -8,8 +8,11 @@ from PyQt6.QtWidgets import (
     QGroupBox, QFormLayout, QSpinBox,
 )
 from PyQt6.QtCore import Qt
+from core import server_link
 from core.config import Config
 from core.database import Database
+from api.jellyfin import JellyfinClient
+from workers.server_worker import ServerTestWorker
 
 
 class SettingsPanel(QWidget):
@@ -33,6 +36,7 @@ class SettingsPanel(QWidget):
         tabs.addTab(self._tab_destinations(),"Destinations")
         tabs.addTab(self._tab_categories(), "Categories")
         tabs.addTab(self._tab_api(),        "API Keys")
+        tabs.addTab(self._tab_server(),     "Server")
         tabs.addTab(self._tab_naming(),     "File naming")
         tabs.addTab(self._tab_subtitles(),  "Subtitles")
         v.addWidget(tabs, 1)
@@ -285,6 +289,107 @@ class SettingsPanel(QWidget):
         v.addWidget(al_card)
         v.addStretch()
         return w
+
+    # ── Server tab ─────────────────────────────────────────────────────
+    def _tab_server(self) -> QWidget:
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(16, 14, 16, 14)
+        v.setSpacing(14)
+        v.addWidget(self._hint(
+            "Connect Orion to your Jellyfin or Emby server to warn about "
+            "duplicates during identification, refresh the library after "
+            "moves, and find missing episodes in the Gaps panel. "
+            "Create an API key in the server dashboard:  Dashboard → API Keys."))
+
+        card = QFrame()
+        card.setObjectName("card")
+        cv = QVBoxLayout(card)
+        cv.setContentsMargins(14, 12, 14, 12)
+        cv.setSpacing(8)
+        cv.addWidget(self._bold("Media server"))
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        self._srv_type = QComboBox()
+        self._srv_type.addItem("Jellyfin", "jellyfin")
+        self._srv_type.addItem("Emby",     "emby")
+        idx = self._srv_type.findData(
+            self._db.setting_get("server_type", "jellyfin"))
+        self._srv_type.setCurrentIndex(max(idx, 0))
+        self._srv_type.currentIndexChanged.connect(
+            lambda _: self._db.setting_set(
+                "server_type", self._srv_type.currentData()))
+        form.addRow("Server type:", self._srv_type)
+
+        self._srv_url = QLineEdit(self._db.setting_get("server_url"))
+        self._srv_url.setPlaceholderText("http://192.168.1.10:8096")
+        self._srv_url.textChanged.connect(
+            lambda t: self._db.setting_set("server_url", t.strip()))
+        form.addRow("Server URL:", self._srv_url)
+
+        key_row = QHBoxLayout()
+        self._srv_key = QLineEdit()
+        self._srv_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._srv_key.setPlaceholderText("Paste API key here…")
+        self._srv_key.blockSignals(True)
+        self._srv_key.setText(
+            self._config.get_api_key(server_link.KEYRING_SERVICE))
+        self._srv_key.blockSignals(False)
+        self._srv_key.textChanged.connect(
+            lambda t: self._config.set_api_key(server_link.KEYRING_SERVICE, t))
+        key_row.addWidget(self._srv_key, 1)
+        clear = QPushButton("Clear")
+        clear.setFixedWidth(60)
+        clear.setObjectName("btn_danger")
+        clear.clicked.connect(lambda: (
+            self._config.delete_api_key(server_link.KEYRING_SERVICE),
+            self._srv_key.clear()))
+        key_row.addWidget(clear)
+        form.addRow("API key:", key_row)
+        cv.addLayout(form)
+
+        test_row = QHBoxLayout()
+        test_btn = QPushButton("Test connection")
+        test_btn.setObjectName("btn_accent")
+        test_btn.clicked.connect(self._test_server)
+        test_row.addWidget(test_btn)
+        self._srv_status = QLabel("")
+        self._srv_status.setWordWrap(True)
+        self._srv_status.setStyleSheet(
+            "color:rgba(255,255,255,0.45);font-size:11px;")
+        test_row.addWidget(self._srv_status, 1)
+        cv.addLayout(test_row)
+        v.addWidget(card)
+
+        self._srv_refresh = QCheckBox(
+            "Refresh the server library automatically after moves")
+        self._srv_refresh.setChecked(
+            self._db.setting_get("server_autorefresh", "1") == "1")
+        self._srv_refresh.toggled.connect(
+            lambda on: self._db.setting_set(
+                "server_autorefresh", "1" if on else "0"))
+        v.addWidget(self._srv_refresh)
+        v.addStretch()
+        return w
+
+    def _test_server(self) -> None:
+        url = self._srv_url.text().strip()
+        key = self._srv_key.text().strip()
+        if not url or not key:
+            self._srv_status.setText("Enter a server URL and API key first.")
+            return
+        self._srv_status.setText("Testing…")
+        client = JellyfinClient(url, key, self._srv_type.currentData())
+        self._srv_test_worker = ServerTestWorker(client)
+        self._srv_test_worker.result.connect(self._on_server_test)
+        self._srv_test_worker.start()
+
+    def _on_server_test(self, ok: bool, msg: str) -> None:
+        color = "#28c840" if ok else "#ff453a"
+        icon  = "✓" if ok else "✕"
+        self._srv_status.setStyleSheet(f"color:{color};font-size:11px;")
+        self._srv_status.setText(f"{icon}  {msg}")
 
     # ── File naming tab ────────────────────────────────────────────────
     def _tab_naming(self) -> QWidget:

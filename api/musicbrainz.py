@@ -124,6 +124,12 @@ class MusicBrainzClient:
             ))
         return out
 
+    def get_release_id(self, recording_mbid: str) -> str:
+        """First release MBID for a recording — used for Cover Art Archive."""
+        data = self._get(f"recording/{recording_mbid}", {"inc": "releases"})
+        releases = data.get("releases", [])
+        return releases[0].get("id", "") if releases else ""
+
     def get_recording(self, mbid: str) -> RecordingResult | None:
         """Fetch full metadata for a recording by MBID."""
         data = self._get(f"recording/{mbid}",

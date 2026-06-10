@@ -2,6 +2,7 @@
 AniList GraphQL client — anime search + episode titles. No API key needed.
 """
 from __future__ import annotations
+import re
 import requests
 from api.tmdb import Candidate
 
@@ -14,14 +15,17 @@ query ($search: String) {
       id
       title { romaji english native }
       startDate { year }
-      coverImage { medium }
+      coverImage { medium large }
       format
       episodes
       averageScore
+      description(asHtml: false)
     }
   }
 }
 """
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 _EPISODE_QUERY = """
 query ($id: Int, $ep: Int) {
@@ -51,15 +55,18 @@ class AniListClient:
                 romaji  = m["title"]["romaji"]  or ""
                 name    = english or romaji
                 yr      = (m.get("startDate") or {}).get("year")
-                cover   = (m.get("coverImage") or {}).get("medium")
+                covers  = m.get("coverImage") or {}
                 raw     = m.get("averageScore") or 0
                 score   = round(raw / 10, 1) if raw else None
+                desc    = _HTML_TAG_RE.sub("", m.get("description") or "")
                 out.append(Candidate(
                     name=name, year=yr, media_type="anime",
                     tmdb_id=m.get("id"),
-                    poster_url=cover,
+                    poster_url=covers.get("medium"),
                     source="anilist",
-                    extra={"romaji": romaji, "episodes": m.get("episodes")},
+                    extra={"romaji": romaji, "episodes": m.get("episodes"),
+                           "overview": desc,
+                           "cover_large": covers.get("large")},
                     score=score,
                 ))
             return out

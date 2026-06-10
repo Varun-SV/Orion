@@ -77,8 +77,9 @@ class BatchApproveWorker(QThread):
                         self.error.emit(str(exc))
                         result = None
                     if result:
-                        orig, chosen, mtype = result
-                        self._db.set_rename_choice(orig, chosen, mtype, "auto")
+                        orig, chosen, mtype, meta = result
+                        self._db.set_rename_choice(orig, chosen, mtype,
+                                                   "auto", meta)
                         self.item_approved.emit(orig, chosen, mtype)
                         approved += 1
                     self.progress.emit(current, total, item["name"])
@@ -100,8 +101,8 @@ class BatchApproveWorker(QThread):
             except Exception:
                 result = None
             if result:
-                orig, chosen, mtype = result
-                self._db.set_rename_choice(orig, chosen, mtype, "auto")
+                orig, chosen, mtype, meta = result
+                self._db.set_rename_choice(orig, chosen, mtype, "auto", meta)
                 self.item_approved.emit(orig, chosen, mtype)
                 approved += 1
             self.progress.emit(current, total, item["name"])
@@ -110,7 +111,7 @@ class BatchApproveWorker(QThread):
 
     # ── Helpers ───────────────────────────────────────────────────────
 
-    def _fetch(self, item: dict) -> tuple[str, str, str] | None:
+    def _fetch(self, item: dict) -> tuple[str, str, str, dict] | None:
         """Create per-thread clients (requests.Session is not thread-safe to share)."""
         anidb   = AniDBClient(self._anidb_client) if self._anidb_client else None
         renamer = Renamer(
@@ -122,7 +123,7 @@ class BatchApproveWorker(QThread):
         return self._fetch_with(renamer, item)
 
     def _fetch_with(self, renamer: Renamer,
-                    item: dict) -> tuple[str, str, str] | None:
+                    item: dict) -> tuple[str, str, str, dict] | None:
         cat = self._cat_map.get(item["detected_category"])
         if not cat:
             return None
@@ -131,7 +132,8 @@ class BatchApproveWorker(QThread):
         if len(candidates) == 1:
             with_year = cat["media_type"] in ("movie", "anime_film")
             chosen = sanitize_windows_name(candidates[0].display(with_year))
-            return item["name"], chosen, cat["media_type"]
+            return (item["name"], chosen, cat["media_type"],
+                    Renamer.candidate_meta(candidates[0]))
         return None
 
     def _safe_batch_size(self) -> int:
