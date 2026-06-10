@@ -6,6 +6,7 @@ Naming convention:  Artist / Album (Year) / TrackNum - Title.ext
 """
 from __future__ import annotations
 import shutil
+import threading
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -15,10 +16,12 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+from core import artwork, nfo_writer, server_link
 from core.config import Config
 from core.database import Database
 from core.mover import Mover
 from core.utils import sanitize_windows_name
+from api.musicbrainz import MusicBrainzClient
 from workers.music_scan_worker import MusicScanWorker
 
 _STATUS_COLORS = {
@@ -53,6 +56,15 @@ class MusicPanel(QWidget):
         self._dry_run_chk = QCheckBox("Dry run")
         self._dry_run_chk.setToolTip("Preview destination paths without moving files")
         hdr.addWidget(self._dry_run_chk)
+
+        self._nfo_chk = QCheckBox("Write NFO + cover art")
+        self._nfo_chk.setToolTip(
+            "Write artist.nfo/album.nfo and a Cover Art Archive cover.jpg "
+            "into the organised folders (covers need a MusicBrainz match)")
+        self._nfo_chk.setChecked(bool(self._config.get_pref("nfo_music", False)))
+        self._nfo_chk.toggled.connect(
+            lambda on: self._config.set_pref("nfo_music", on))
+        hdr.addWidget(self._nfo_chk)
 
         self._stop_btn = QPushButton("Stop")
         self._stop_btn.setObjectName("btn_danger")
@@ -223,6 +235,8 @@ class MusicPanel(QWidget):
         items = self._db.get_music_items()
         previews: list[tuple[str, str]] = []
         moved = errors = 0
+        # (album_dir, album, artist, year, recording_mbid) for sidecars
+        organised: dict[Path, tuple[str, str, str, str]] = {}
 
         for item in items:
             choice = self._db.get_music_rename_choice(item["source_path"])
@@ -252,14 +266,47 @@ class MusicPanel(QWidget):
                 if ok:
                     self._db.update_music_item_status(item["source_path"], "moved")
                     moved += 1
+                    album_dir = src.parent / artist / album
+                    organised.setdefault(album_dir, (
+                        choice["album"] or "Unknown Album",
+                        choice["artist"] or "Unknown Artist",
+                        choice["year"] or "",
+                        choice["mbid"] or "",
+                    ))
                 else:
                     errors += 1
 
         if dry:
             self._show_dry_run(previews)
-        else:
-            self._prog_lbl.setText(f"Done — {moved} moved, {errors} failed.")
-            self._refresh_table()
+            return
+
+        parts = [f"Done — {moved} moved, {errors} failed."]
+        if moved and self._nfo_chk.isChecked() and organised:
+            threading.Thread(target=self._write_sidecars,
+                             args=(organised,), daemon=True).start()
+            parts.append("Writing NFO + covers in background…")
+        if moved and server_link.refresh_after_move(self._db, self._config):
+            parts.append("Server refresh triggered.")
+        self._prog_lbl.setText("  ".join(parts))
+        self._refresh_table()
+
+    def _write_sidecars(self,
+                        organised: dict[Path, tuple[str, str, str, str]]) -> None:
+        """Write artist.nfo / album.nfo / cover.jpg for each organised album.
+
+        Runs on a daemon thread: cover lookups hit MusicBrainz (1 req/s
+        throttle) and Cover Art Archive, which would freeze the UI."""
+        mb      = MusicBrainzClient()
+        written = 0
+        for album_dir, (album, artist, year, mbid) in organised.items():
+            nfo_writer.write_artist_nfo(album_dir.parent, artist)
+            release_id = mb.get_release_id(mbid) if mbid else ""
+            nfo_writer.write_album_nfo(album_dir, album, artist, year, release_id)
+            if release_id:
+                artwork.save_album_cover(release_id, album_dir / "cover.jpg")
+            written += 1
+        self._db.add_log("sidecar", f"{written} album folder(s)",
+                         "music NFO + covers written", "ok")
 
     def _show_dry_run(self, previews: list[tuple[str, str]]) -> None:
         dlg = DryRunDialog(previews, self)

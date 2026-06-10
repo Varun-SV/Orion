@@ -5,7 +5,7 @@
 
   **A Jellyfin-native media library organizer**
 
-  Scan, rename, and move your entire media collection — videos, music, and books — with API-powered metadata lookups, all in a single desktop app.
+  Scan, rename, and move your entire media collection — videos, music, and books — with API-powered metadata lookups, NFO + artwork sidecars, and live Jellyfin/Emby server integration, all in a single desktop app.
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
@@ -179,6 +179,32 @@ Additional details:
 - **Series detection** — extracts series names from Open Library subject tags (e.g. "Dune Chronicles", "Foundation Series")
 - **Layout** — organises into `Author / Series / Title.ext`; falls back to `Author / Title.ext` when no series is found
 
+### Media server integration (Jellyfin / Emby)
+
+Connect Orion to your running server in **Settings → Server** (URL + API key from *Dashboard → API Keys*):
+
+- **Duplicate warning** — while identifying an item, Orion searches your server library and warns inline if it already exists, including its resolution (e.g. *"Already in your media server library: Inception (2010) · 4K"*) — before you waste a move on a worse copy
+- **Auto library refresh** — after every successful move batch (video, music, or books), Orion triggers a server library scan so new media appears immediately; toggleable in Settings
+- **Episode Gaps panel** — loads every series from your server library and diffs its episodes against the full TMDb episode list, showing exactly which episodes are missing per season
+- **Connection test** — one-click validation with server name and version readback
+- Works with both **Jellyfin** and **Emby** (same API surface); the API key is stored in the OS keychain like all other keys
+
+### NFO + artwork sidecars (opt-in)
+
+Tick **Write NFO + artwork** in any panel to write metadata sidecars during moves, so servers pick up correct titles, plots, and provider IDs instantly without re-scraping — even offline:
+
+| Media | Files written | Artwork source |
+|---|---|---|
+| Movies / Anime Films | `movie.nfo` + `poster.jpg` | TMDb (w500) / AniList cover |
+| Series / Anime / Web Series | `tvshow.nfo` + `poster.jpg` | TMDb (w500) / AniList cover |
+| Music | `artist.nfo`, `album.nfo` + `cover.jpg` | Cover Art Archive (via MusicBrainz release) |
+| Books | `<Title>.jpg` | Open Library (by ISBN) |
+
+- NFOs include title, year, plot, and a `<uniqueid>` provider ID (TMDb/AniList) in Kodi/Jellyfin-compatible XML
+- Existing NFO and image files are **never overwritten**
+- Off by default; the checkbox state is remembered per panel
+- Music/book artwork downloads run in the background after the move so the UI never blocks on the MusicBrainz rate limit
+
 ### Organisation
 - **Same-drive fast moves** — detects same filesystem via `os.stat().st_dev` (correct on Linux multi-mount setups); falls back to `shutil.move` across drives
 - **In-place organisation** — "In-place" checkbox reorganises folders *within* the source folder rather than moving them to a new destination; useful when your source is already on the right drive
@@ -271,6 +297,7 @@ A setup wizard runs automatically the first time you open Orion:
 | **AudD** | Music recognition (second-pass fallback) | Optional | Free 100 req/day at [dashboard.audd.io](https://dashboard.audd.io) |
 | **Open Library** | Book metadata | No | Always active, no key needed |
 | **AcoustID** | Audio fingerprint lookup | Optional | Free at [acoustid.org/login](https://acoustid.org/login) — enables fingerprint-based music ID |
+| **Jellyfin / Emby** | Duplicate check, library refresh, episode gaps | Optional | Your server's *Dashboard → API Keys*; configure in Settings → Server |
 
 Keys are stored in the **OS keychain** and loaded automatically on every launch:
 
@@ -385,11 +412,15 @@ Orion/
 │   ├── renamer.py             # API candidate fetch + rename choice persistence
 │   ├── file_namer.py          # Jellyfin filename formatting + quality tag extraction
 │   ├── mover.py               # File/folder move (same-drive, cross-drive, in-place, preview)
+│   ├── nfo_writer.py          # Kodi/Jellyfin NFO sidecar generation (movie/tvshow/artist/album)
+│   ├── artwork.py             # poster.jpg / cover.jpg downloads (TMDb, AniList, CAA, Open Library)
+│   ├── server_link.py         # Jellyfin/Emby client from saved settings + auto-refresh hook
 │   └── utils.py               # Filename sanitization, video/subtitle extension sets
 ├── api/
 │   ├── tmdb.py                # TMDb REST client — movies, TV shows, posters, episode titles
 │   ├── anilist.py             # AniList GraphQL client — anime search
 │   ├── anidb.py               # AniDB HTTP client — anime episode title fallback
+│   ├── jellyfin.py            # Jellyfin/Emby client — search, refresh, series episodes
 │   ├── musicbrainz.py         # MusicBrainz client — music search + recording fetch (free)
 │   ├── acoustid.py            # AcoustID client — fpcalc fingerprint → MusicBrainz ID
 │   ├── audd.py                # AudD.io client — audio recognition by file upload
@@ -401,16 +432,18 @@ Orion/
 │   ├── video_panel.py         # Reusable per-type panel: scan + identify + dry run + move
 │   ├── music_panel.py         # Music scan, tag review, fingerprint identification, organise
 │   ├── books_panel.py         # Book scan, metadata review, Open Library lookup, organise
-│   ├── settings_panel.py      # Edit sources, categories, destinations, API keys
+│   ├── gaps_panel.py          # Episode Gaps — server library vs TMDb episode diff
+│   ├── settings_panel.py      # Edit sources, categories, destinations, API keys, server
 │   ├── log_panel.py           # Activity log viewer
 │   └── styles.py              # Dark Jellyfin-inspired QSS theme
 ├── workers/
 │   ├── scan_worker.py         # QThread: runs Scanner without blocking the UI
 │   ├── api_worker.py          # QThread: video API lookups with progress signals
-│   ├── move_worker.py         # QThread: file moves with per-item progress
+│   ├── move_worker.py         # QThread: file moves + optional NFO/artwork sidecars
 │   ├── batch_approve_worker.py# QThread: parallel + sequential auto-approval
 │   ├── music_scan_worker.py   # QThread: audio tag reading + fingerprinting + AudD
-│   └── book_scan_worker.py    # QThread: epub/PDF metadata + Open Library lookup
+│   ├── book_scan_worker.py    # QThread: epub/PDF metadata + Open Library lookup
+│   └── server_worker.py       # QThreads: server test, dup check, series list, gap analysis
 ├── build.spec                 # PyInstaller build configuration
 ├── requirements.txt
 └── LICENSE
@@ -425,6 +458,8 @@ Orion/
 - **AudD free tier** — the free AudD plan allows 100 recognition requests per day. For large music libraries, consider adding a paid AudD token or ensuring `fpcalc` is installed so AcoustID is tried first.
 - **Linux without a keyring daemon** — headless or minimal Linux installs may have no Secret Service provider. Install GNOME Keyring (`gnome-keyring`) or KWallet and ensure a D-Bus session is running; without one, keys fall back to session-only.
 - **No undo** — moves are immediate. Use **Dry run** to preview before committing.
+- **No episode-level NFOs yet** — Orion writes `movie.nfo`/`tvshow.nfo` per title; per-episode NFOs (plot + air date for every file) would need one TMDb call per episode and are planned as a follow-up.
+- **Music covers need a MusicBrainz match** — Cover Art Archive lookups go through the recording's MBID, so files identified only from embedded tags (no MBID) get NFOs but no `cover.jpg`.
 - **Deep scan on large libraries is slower** — `guessit` is run on up to 50 video filenames per folder; on a source with hundreds of folders this adds a few seconds per folder compared to the fast scan.
 - **Book hosting platform** — the current naming convention (`Author/Series/Title.ext`) is compatible with Calibre, Kavita, and most OPDS-based book servers. The layout can be adjusted in a future release once a target server is confirmed.
 

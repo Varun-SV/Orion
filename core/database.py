@@ -76,6 +76,7 @@ class Database:
             chosen_name   TEXT NOT NULL,
             media_type    TEXT NOT NULL DEFAULT '',
             source        TEXT NOT NULL DEFAULT 'user',
+            meta_json     TEXT NOT NULL DEFAULT '',
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
         )""")
         c.execute("""CREATE TABLE IF NOT EXISTS file_rename_choices (
@@ -148,7 +149,16 @@ class Database:
             source       TEXT NOT NULL DEFAULT 'user',
             created_at   TEXT NOT NULL DEFAULT (datetime('now'))
         )""")
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns that post-date the original schema (existing DBs)."""
+        c = self._c()
+        cols = [r[1] for r in c.execute("PRAGMA table_info(rename_choices)")]
+        if "meta_json" not in cols:
+            c.execute("ALTER TABLE rename_choices"
+                      " ADD COLUMN meta_json TEXT NOT NULL DEFAULT ''")
 
     # ── Settings ────────────────────────────────────────────────────────
     def setting_get(self, key: str, default: str = "") -> str:
@@ -308,14 +318,20 @@ class Database:
 
     def set_rename_choice(self, original_name: str, chosen_name: str,
                           media_type: str = "",
-                          source: str = "user") -> None:
+                          source: str = "user",
+                          meta: dict | None = None) -> None:
+        """*meta* is the chosen API candidate's metadata (title, year,
+        provider id, poster URL, overview) used for NFO/artwork sidecars."""
         self._c().execute(
             "INSERT INTO rename_choices"
-            "(original_name,chosen_name,media_type,source) VALUES(?,?,?,?)"
+            "(original_name,chosen_name,media_type,source,meta_json)"
+            " VALUES(?,?,?,?,?)"
             " ON CONFLICT(original_name)"
             " DO UPDATE SET chosen_name=excluded.chosen_name,"
-            "               source=excluded.source",
-            (original_name, chosen_name, media_type, source))
+            "               source=excluded.source,"
+            "               meta_json=excluded.meta_json",
+            (original_name, chosen_name, media_type, source,
+             json.dumps(meta) if meta else ""))
         self._conn.commit()
 
     def get_all_rename_choices(self) -> list[dict]:

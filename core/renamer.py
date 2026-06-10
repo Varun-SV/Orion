@@ -92,6 +92,19 @@ class Renamer:
 
     # ── Format helpers ─────────────────────────────────────────────────
     @staticmethod
+    def candidate_meta(candidate: Candidate) -> dict:
+        """Metadata persisted with a choice, consumed by NFO/artwork writing."""
+        return {
+            "title":      candidate.name,
+            "year":       candidate.year,
+            "source":     candidate.source,
+            "id":         candidate.tmdb_id,
+            "poster_url": (candidate.extra.get("cover_large")
+                           or candidate.poster_url),
+            "overview":   candidate.extra.get("overview", ""),
+        }
+
+    @staticmethod
     def format_name(candidate: Candidate, with_year: bool = True) -> str:
         name = sanitize_windows_name(candidate.name)
         if with_year and candidate.year:

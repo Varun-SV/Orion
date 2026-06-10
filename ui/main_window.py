@@ -17,6 +17,7 @@ from ui.dashboard import DashboardPanel
 from ui.video_panel import VideoPanel
 from ui.music_panel import MusicPanel
 from ui.books_panel import BooksPanel
+from ui.gaps_panel import GapsPanel
 from ui.settings_panel import SettingsPanel
 from ui.log_panel import LogPanel
 
@@ -99,7 +100,7 @@ class MainWindow(QMainWindow):
         v.addWidget(logo)
 
         # Panel indices: 0=Dashboard 1=Movies 2=Series 3=Anime 4=AnimeFilms
-        #                5=WebSeries 6=Music 7=Books 8=Settings 9=Log
+        #                5=WebSeries 6=Music 7=Books 8=Gaps 9=Settings 10=Log
         defs = [
             ("⊞",  "Dashboard",    0),
             ("▶",  "Movies",       1),
@@ -109,7 +110,8 @@ class MainWindow(QMainWindow):
             ("⌂",  "Web Series",   5),
             ("♪",  "Music",        6),
             ("📖", "Books",        7),
-            ("⚙",  "Settings",     8),
+            ("▦",  "Episode Gaps", 8),
+            ("⚙",  "Settings",     9),
         ]
         self._nav_buttons: list[QPushButton] = []
         for glyph, tip, idx in defs:
@@ -123,7 +125,7 @@ class MainWindow(QMainWindow):
 
         log_btn = SidebarButton("≡", "Activity log")
         log_btn.setFixedSize(QSize(44, 44))
-        log_btn.clicked.connect(lambda: self._switch(9))
+        log_btn.clicked.connect(lambda: self._switch(10))
         self._nav_buttons.append(log_btn)
         v.addWidget(log_btn)
         return sidebar
@@ -144,11 +146,12 @@ class MainWindow(QMainWindow):
                                 "Web Series",  ["web_series"])
         music      = MusicPanel(self._db, self._config)
         books      = BooksPanel(self._db, self._config)
+        gaps       = GapsPanel(self._db, self._config)
         settings   = SettingsPanel(self._db, self._config)
         log        = LogPanel(self._db)
 
         self._panels = [dashboard, movies, series, anime, anime_film,
-                        web_series, music, books, settings, log]
+                        web_series, music, books, gaps, settings, log]
         for p in self._panels:
             self._stack.addWidget(p)
 
@@ -253,6 +256,10 @@ class MainWindow(QMainWindow):
         parts.append("AniList ✓")
         if self._config.has_api_key("audd"):
             parts.append("AudD ✓")
+        from core import server_link
+        if server_link.is_configured(self._db, self._config):
+            stype = self._db.setting_get("server_type", "jellyfin")
+            parts.append(("Emby" if stype == "emby" else "Jellyfin") + " ✓")
         self._api_lbl.setText("  ".join(parts))
 
     def update_api_status(self) -> None:
