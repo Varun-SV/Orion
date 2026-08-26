@@ -191,7 +191,9 @@ class OperationPlanPanel(QWidget):
 
         approved_count = len(video) + len(music) + len(books)
         destinations = self._db.get_destinations()
-        errors = self._db.get_stats()["errors"]
+        errors = sum(1 for item in self._db.get_scan_items() if item["status"] == "error")
+        errors += sum(1 for item in self._db.get_music_items() if item["status"] == "error")
+        errors += sum(1 for item in self._db.get_book_items() if item["status"] == "error")
 
         self._approved.set_value(str(approved_count))
         self._destinations.set_value(str(len(destinations)))
@@ -248,7 +250,7 @@ class OperationPlanPanel(QWidget):
         ))
         self._checks.addWidget(CheckRow(
             "Known operation issues",
-            "No scan items currently report an error." if not errors else f"{errors} item{'s' if errors != 1 else ''} report an error and should be reviewed.",
+            "No tracked media currently report an error." if not errors else f"{errors} item{'s' if errors != 1 else ''} report an error and should be reviewed.",
             "CLEAR" if not errors else "CHECK",
             "good" if not errors else "danger",
         ))
