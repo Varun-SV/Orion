@@ -57,8 +57,8 @@ _THEMES = {
         "danger": "#bd3f4c",
         "danger_bg": "rgba(189,63,76,0.10)",
         # Transitional host for existing detailed panels that still contain
-        # a few legacy light-on-dark inline labels.  Keeping their canvas
-        # dark guarantees readable text while the new shell can be Starlight.
+        # a few legacy light-on-dark inline labels. Keeping their canvas dark
+        # guarantees readable text while the new shell can be Starlight.
         "legacy": "#10151e",
         "selection": "rgba(0,119,182,0.14)",
     },
@@ -208,6 +208,66 @@ QLabel#chip[tone="violet"] {{ color: {c['violet']}; background: {c['violet_bg']}
     background: {c['legacy']};
     border: 1px solid {c['line']};
     border-radius: 12px;
+}}
+#legacySurface QWidget {{
+    color: #f4f7fb;
+}}
+#legacySurface QLabel[role="muted"], #legacySurface QLabel[role="subtle"] {{
+    color: rgba(255,255,255,0.55);
+}}
+#legacySurface QLineEdit, #legacySurface QTextEdit, #legacySurface QPlainTextEdit,
+#legacySurface QComboBox {{
+    background: #0b1119;
+    color: #f4f7fb;
+    border: 1px solid #202a38;
+}}
+#legacySurface QListWidget, #legacySurface QTreeWidget, #legacySurface QTableWidget {{
+    background: #0d141d;
+    color: #f4f7fb;
+    border: 1px solid #202a38;
+    alternate-background-color: #111823;
+}}
+#legacySurface QListWidget::item, #legacySurface QTreeWidget::item, #legacySurface QTableWidget::item {{
+    color: #f4f7fb;
+}}
+#legacySurface QHeaderView::section {{
+    background: #111823;
+    color: #8d9aae;
+    border-bottom: 1px solid #202a38;
+}}
+#legacySurface QPushButton {{
+    background: #182232;
+    color: #c5cfdd;
+    border: 1px solid #202a38;
+}}
+#legacySurface QPushButton:hover {{
+    background: #243247;
+    color: #ffffff;
+}}
+#legacySurface QPushButton#btn_accent {{
+    background: #54c7ff;
+    color: #071018;
+    border-color: #54c7ff;
+}}
+#legacySurface QPushButton#btn_danger {{
+    background: rgba(255,127,135,0.12);
+    color: #ff7f87;
+}}
+#legacySurface QCheckBox {{ color: #c5cfdd; }}
+#legacySurface QCheckBox::indicator {{
+    background: #0b1119;
+    border: 1px solid #354156;
+}}
+#legacySurface QCheckBox::indicator:checked {{
+    background: #54c7ff;
+    border-color: #54c7ff;
+}}
+#legacySurface QTabBar::tab {{ color: #8d9aae; }}
+#legacySurface QTabBar::tab:selected {{ color: #54c7ff; border-bottom-color: #54c7ff; }}
+#legacySurface QComboBox QAbstractItemView {{
+    background: #111823;
+    color: #f4f7fb;
+    selection-background-color: rgba(84,199,255,0.18);
 }}
 
 /* Buttons */
