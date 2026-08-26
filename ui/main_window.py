@@ -364,7 +364,9 @@ class MainWindow(QMainWindow):
             )
         )
         self._nav_buttons[2].set_badge(1 if approved else 0)
-        errors = self._db.get_stats()["errors"]
+        errors = sum(1 for item in self._db.get_scan_items() if item["status"] == "error")
+        errors += sum(1 for item in self._db.get_music_items() if item["status"] == "error")
+        errors += sum(1 for item in self._db.get_book_items() if item["status"] == "error")
         self._navigator_state.setText("⚠  Check signals" if errors else "✦  Navigator online")
         self._navigator_state.setProperty("tone", "warn" if errors else "good")
         self._navigator_state.style().unpolish(self._navigator_state)
@@ -373,9 +375,13 @@ class MainWindow(QMainWindow):
     def _refresh_workspace_summary(self) -> None:
         sources = len(self._db.get_source_folders())
         destinations = len(self._db.get_destinations())
-        stats = self._db.get_stats()
+        total = (
+            len(self._db.get_scan_items())
+            + len(self._db.get_music_items())
+            + len(self._db.get_book_items())
+        )
         self._library_summary.setText(
-            f"{stats['total']} tracked items\n{stats['pending']} awaiting review"
+            f"{total} tracked items\n{self._review.pending_count} awaiting review"
         )
         self._workspace_meta.setText(
             f"{sources} source{'s' if sources != 1 else ''} · "
