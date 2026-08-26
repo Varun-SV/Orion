@@ -1,284 +1,419 @@
-"""Orion dark theme — Jellyfin-inspired QSS stylesheet."""
+"""Orion Navigator themes.
 
-ACCENT   = "#00a4dc"
-BG_WIN   = "#111111"
-BG_PANEL = "#171717"
-BG_CARD  = "#1e1e1e"
-BG_INPUT = "#141414"
-BG_HOVER = "#252525"
-FG_PRI   = "#ffffff"
-FG_SEC   = "rgba(255,255,255,0.55)"
-FG_MUT   = "rgba(255,255,255,0.28)"
-BORDER   = "rgba(255,255,255,0.09)"
-SUCCESS  = "#28c840"
-WARN     = "#febc2e"
-DANGER   = "#ff5f57"
+The desktop UI deliberately uses semantic object names instead of per-widget
+hard-coded colours.  That keeps Nightfall and Starlight readable and makes it
+possible to evolve the visual language without chasing inline styles.
+"""
+from __future__ import annotations
 
-DARK_STYLESHEET = f"""
+_THEMES = {
+    "dark": {
+        "bg": "#090c11",
+        "sidebar": "#0b0f15",
+        "panel": "#0e131b",
+        "card": "#111823",
+        "card2": "#0d141d",
+        "input": "#0b1119",
+        "hover": "#182232",
+        "line": "#202a38",
+        "text": "#f4f7fb",
+        "muted": "#8d9aae",
+        "muted2": "#627086",
+        "accent": "#54c7ff",
+        "accent_hover": "#79d4ff",
+        "accent_bg": "rgba(84,199,255,0.12)",
+        "violet": "#a9a0ff",
+        "violet_bg": "rgba(169,160,255,0.12)",
+        "success": "#54d69d",
+        "success_bg": "rgba(84,214,157,0.12)",
+        "warn": "#f5c66c",
+        "warn_bg": "rgba(245,198,108,0.12)",
+        "danger": "#ff7f87",
+        "danger_bg": "rgba(255,127,135,0.12)",
+        "legacy": "#0d1118",
+        "selection": "rgba(84,199,255,0.18)",
+    },
+    "light": {
+        "bg": "#f3f6fb",
+        "sidebar": "#f8fafe",
+        "panel": "#eef2f8",
+        "card": "#ffffff",
+        "card2": "#f7f9fc",
+        "input": "#ffffff",
+        "hover": "#e8eef7",
+        "line": "#d9e1ec",
+        "text": "#172033",
+        "muted": "#5d6b7e",
+        "muted2": "#7a8798",
+        "accent": "#0077b6",
+        "accent_hover": "#005f94",
+        "accent_bg": "rgba(0,119,182,0.10)",
+        "violet": "#6557c9",
+        "violet_bg": "rgba(101,87,201,0.10)",
+        "success": "#167a58",
+        "success_bg": "rgba(22,122,88,0.10)",
+        "warn": "#8a6100",
+        "warn_bg": "rgba(138,97,0,0.10)",
+        "danger": "#bd3f4c",
+        "danger_bg": "rgba(189,63,76,0.10)",
+        # Transitional host for existing detailed panels that still contain
+        # a few legacy light-on-dark inline labels. Keeping their canvas dark
+        # guarantees readable text while the new shell can be Starlight.
+        "legacy": "#10151e",
+        "selection": "rgba(0,119,182,0.14)",
+    },
+}
+
+
+def _build(theme: str) -> str:
+    c = _THEMES[theme]
+    return f"""
 QMainWindow, QDialog {{
-    background: {BG_WIN};
+    background: {c['bg']};
 }}
 QWidget {{
     background: transparent;
-    color: {FG_PRI};
-    font-family: "Segoe UI", "SF Pro Text", system-ui, sans-serif;
+    color: {c['text']};
+    font-family: "Segoe UI", "SF Pro Text", Arial, sans-serif;
     font-size: 13px;
 }}
 QScrollArea, QScrollArea > QWidget > QWidget {{
     background: transparent;
     border: none;
 }}
-
-/* ── Sidebar ── */
-#sidebar {{
-    background: #0d0d0d;
-    border-right: 1px solid {BORDER};
+QLabel[role="muted"] {{ color: {c['muted']}; }}
+QLabel[role="subtle"] {{ color: {c['muted2']}; }}
+QLabel#eyebrow {{
+    color: {c['accent']};
+    font-size: 10px;
+    font-weight: 700;
 }}
-#sidebar QPushButton {{
+QLabel#pageTitle {{
+    color: {c['text']};
+    font-size: 26px;
+    font-weight: 650;
+}}
+QLabel#sectionTitle {{
+    color: {c['text']};
+    font-size: 15px;
+    font-weight: 600;
+}}
+
+/* App shell */
+#appRoot {{ background: {c['bg']}; }}
+#sidebar {{
+    background: {c['sidebar']};
+    border-right: 1px solid {c['line']};
+}}
+#topbar {{
+    background: {c['sidebar']};
+    border-bottom: 1px solid {c['line']};
+}}
+#brandName {{
+    color: {c['text']};
+    font-size: 15px;
+    font-weight: 750;
+}}
+#brandTagline {{ color: {c['muted2']}; font-size: 10px; }}
+#navGroupLabel {{
+    color: {c['muted2']};
+    font-size: 9px;
+    font-weight: 700;
+}}
+QPushButton#navButton {{
+    text-align: left;
     background: transparent;
     border: none;
-    border-radius: 8px;
-    padding: 8px;
-    color: {FG_MUT};
-}}
-#sidebar QPushButton:hover {{
-    background: {BG_HOVER};
-    color: {FG_SEC};
-}}
-#sidebar QPushButton:checked {{
-    background: rgba(0,164,220,0.15);
-    color: {ACCENT};
-}}
-
-/* ── Cards / panels ── */
-#card {{
-    background: {BG_CARD};
-    border: 1px solid {BORDER};
-    border-radius: 10px;
-}}
-#card_accent {{
-    background: {BG_CARD};
-    border: 1px solid rgba(0,164,220,0.25);
-    border-radius: 10px;
-}}
-
-/* ── Buttons ── */
-QPushButton {{
-    background: {BG_HOVER};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    padding: 6px 14px;
-    color: {FG_SEC};
-}}
-QPushButton:hover {{
-    background: #2e2e2e;
-    color: {FG_PRI};
-    border-color: rgba(255,255,255,0.18);
-}}
-QPushButton:pressed {{
-    background: #222;
-}}
-QPushButton#btn_accent {{
-    background: {ACCENT};
-    border: none;
-    color: #fff;
+    border-radius: 9px;
+    padding: 9px 11px;
+    color: {c['muted']};
     font-weight: 500;
 }}
-QPushButton#btn_accent:hover {{
-    background: #0092c7;
+QPushButton#navButton:hover {{
+    background: {c['hover']};
+    color: {c['text']};
 }}
-QPushButton#btn_danger {{
-    background: transparent;
-    border: 1px solid rgba(255,95,87,0.35);
-    color: {DANGER};
+QPushButton#navButton:checked {{
+    background: {c['accent_bg']};
+    color: {c['accent']};
+    font-weight: 650;
 }}
-QPushButton#btn_danger:hover {{
-    background: rgba(255,95,87,0.1);
-}}
-QPushButton:disabled {{
-    opacity: 0.4;
-}}
-
-/* ── Inputs ── */
-QLineEdit, QTextEdit, QPlainTextEdit {{
-    background: {BG_INPUT};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    padding: 6px 10px;
-    color: {FG_PRI};
-    selection-background-color: {ACCENT};
-}}
-QLineEdit:focus, QTextEdit:focus {{
-    border-color: rgba(0,164,220,0.5);
-}}
-QComboBox {{
-    background: {BG_INPUT};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    padding: 5px 10px;
-    color: {FG_PRI};
-}}
-QComboBox::drop-down {{
-    border: none;
-    width: 24px;
-}}
-QComboBox QAbstractItemView {{
-    background: {BG_CARD};
-    border: 1px solid {BORDER};
-    selection-background-color: rgba(0,164,220,0.2);
-}}
-
-/* ── Lists / Tables ── */
-QListWidget, QTreeWidget, QTableWidget {{
-    background: {BG_INPUT};
-    border: 1px solid {BORDER};
+QLabel#navBadge {{
+    background: {c['accent_bg']};
+    color: {c['accent']};
+    border: 1px solid {c['line']};
     border-radius: 8px;
+    padding: 1px 5px;
+    font-size: 9px;
+    font-weight: 700;
+}}
+#workspaceSummary {{
+    background: {c['card2']};
+    border: 1px solid {c['line']};
+    border-radius: 10px;
+}}
+
+/* Cards */
+QFrame#card, QWidget#card {{
+    background: {c['card']};
+    border: 1px solid {c['line']};
+    border-radius: 12px;
+}}
+QFrame#softCard, QWidget#softCard {{
+    background: {c['card2']};
+    border: 1px solid {c['line']};
+    border-radius: 12px;
+}}
+QFrame#metricCard {{
+    background: {c['card']};
+    border: 1px solid {c['line']};
+    border-radius: 12px;
+}}
+QLabel#metricLabel {{ color: {c['muted']}; font-size: 10px; font-weight: 600; }}
+QLabel#metricValue {{ color: {c['text']}; font-size: 23px; font-weight: 650; }}
+QLabel#metricValue[tone="accent"] {{ color: {c['accent']}; }}
+QLabel#metricValue[tone="success"] {{ color: {c['success']}; }}
+QLabel#metricValue[tone="warn"] {{ color: {c['warn']}; }}
+QLabel#metricValue[tone="danger"] {{ color: {c['danger']}; }}
+#navigatorBar {{
+    background: {c['accent_bg']};
+    border: 1px solid {c['line']};
+    border-radius: 12px;
+}}
+#navigatorMark {{
+    color: {c['accent']};
+    font-size: 19px;
+    font-weight: 700;
+}}
+#signalRow {{
+    background: {c['card2']};
+    border: 1px solid {c['line']};
+    border-radius: 9px;
+}}
+QLabel#chip {{
+    color: {c['muted']};
+    background: {c['card2']};
+    border: 1px solid {c['line']};
+    border-radius: 8px;
+    padding: 2px 7px;
+    font-size: 10px;
+}}
+QLabel#chip[tone="good"] {{ color: {c['success']}; background: {c['success_bg']}; }}
+QLabel#chip[tone="warn"] {{ color: {c['warn']}; background: {c['warn_bg']}; }}
+QLabel#chip[tone="danger"] {{ color: {c['danger']}; background: {c['danger_bg']}; }}
+QLabel#chip[tone="violet"] {{ color: {c['violet']}; background: {c['violet_bg']}; }}
+
+/* Transitional host for existing functional media/settings panels. */
+#legacySurface {{
+    background: {c['legacy']};
+    border: 1px solid {c['line']};
+    border-radius: 12px;
+}}
+#legacySurface QWidget {{
+    color: #f4f7fb;
+}}
+#legacySurface QLabel[role="muted"], #legacySurface QLabel[role="subtle"] {{
+    color: rgba(255,255,255,0.55);
+}}
+#legacySurface QLineEdit, #legacySurface QTextEdit, #legacySurface QPlainTextEdit,
+#legacySurface QComboBox {{
+    background: #0b1119;
+    color: #f4f7fb;
+    border: 1px solid #202a38;
+}}
+#legacySurface QListWidget, #legacySurface QTreeWidget, #legacySurface QTableWidget {{
+    background: #0d141d;
+    color: #f4f7fb;
+    border: 1px solid #202a38;
+    alternate-background-color: #111823;
+}}
+#legacySurface QListWidget::item, #legacySurface QTreeWidget::item, #legacySurface QTableWidget::item {{
+    color: #f4f7fb;
+}}
+#legacySurface QHeaderView::section {{
+    background: #111823;
+    color: #8d9aae;
+    border-bottom: 1px solid #202a38;
+}}
+#legacySurface QPushButton {{
+    background: #182232;
+    color: #c5cfdd;
+    border: 1px solid #202a38;
+}}
+#legacySurface QPushButton:hover {{
+    background: #243247;
+    color: #ffffff;
+}}
+#legacySurface QPushButton#btn_accent {{
+    background: #54c7ff;
+    color: #071018;
+    border-color: #54c7ff;
+}}
+#legacySurface QPushButton#btn_danger {{
+    background: rgba(255,127,135,0.12);
+    color: #ff7f87;
+}}
+#legacySurface QCheckBox {{ color: #c5cfdd; }}
+#legacySurface QCheckBox::indicator {{
+    background: #0b1119;
+    border: 1px solid #354156;
+}}
+#legacySurface QCheckBox::indicator:checked {{
+    background: #54c7ff;
+    border-color: #54c7ff;
+}}
+#legacySurface QTabBar::tab {{ color: #8d9aae; }}
+#legacySurface QTabBar::tab:selected {{ color: #54c7ff; border-bottom-color: #54c7ff; }}
+#legacySurface QComboBox QAbstractItemView {{
+    background: #111823;
+    color: #f4f7fb;
+    selection-background-color: rgba(84,199,255,0.18);
+}}
+
+/* Buttons */
+QPushButton {{
+    background: {c['card2']};
+    border: 1px solid {c['line']};
+    border-radius: 7px;
+    padding: 7px 13px;
+    color: {c['muted']};
+}}
+QPushButton:hover {{
+    background: {c['hover']};
+    color: {c['text']};
+}}
+QPushButton:pressed {{ background: {c['panel']}; }}
+QPushButton#btn_accent {{
+    background: {c['accent']};
+    border: 1px solid {c['accent']};
+    color: #ffffff;
+    font-weight: 650;
+}}
+QPushButton#btn_accent:hover {{ background: {c['accent_hover']}; border-color: {c['accent_hover']}; }}
+QPushButton#btn_danger {{
+    background: {c['danger_bg']};
+    border: 1px solid {c['line']};
+    color: {c['danger']};
+}}
+QPushButton#themeButton {{ min-width: 96px; }}
+QPushButton:disabled {{ color: {c['muted2']}; background: {c['panel']}; }}
+
+/* Inputs */
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox {{
+    background: {c['input']};
+    border: 1px solid {c['line']};
+    border-radius: 7px;
+    padding: 7px 10px;
+    color: {c['text']};
+    selection-background-color: {c['accent']};
+    selection-color: #ffffff;
+}}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {{
+    border: 1px solid {c['accent']};
+}}
+QComboBox::drop-down {{ border: none; width: 24px; }}
+QComboBox QAbstractItemView {{
+    background: {c['card']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    selection-background-color: {c['selection']};
+}}
+
+/* Lists / trees / tables */
+QListWidget, QTreeWidget, QTableWidget {{
+    background: {c['card']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    border-radius: 9px;
     outline: none;
+    alternate-background-color: {c['card2']};
 }}
 QListWidget::item, QTreeWidget::item, QTableWidget::item {{
     padding: 6px 8px;
-    border-radius: 4px;
-    color: {FG_SEC};
+    color: {c['text']};
 }}
-QListWidget::item:selected, QTreeWidget::item:selected {{
-    background: rgba(0,164,220,0.18);
-    color: {FG_PRI};
+QListWidget::item:selected, QTreeWidget::item:selected, QTableWidget::item:selected {{
+    background: {c['selection']};
+    color: {c['text']};
 }}
-QListWidget::item:hover, QTreeWidget::item:hover {{
-    background: {BG_HOVER};
-    color: {FG_PRI};
-}}
-QTableWidget::item:selected {{
-    background: rgba(0,164,220,0.18);
-}}
+QListWidget::item:hover, QTreeWidget::item:hover {{ background: {c['hover']}; }}
 QHeaderView::section {{
-    background: {BG_CARD};
+    background: {c['card2']};
+    color: {c['muted']};
     border: none;
-    border-bottom: 1px solid {BORDER};
-    padding: 6px 10px;
-    color: {FG_MUT};
-    font-size: 11px;
-    letter-spacing: 0.05em;
+    border-bottom: 1px solid {c['line']};
+    padding: 7px 9px;
+    font-size: 10px;
+    font-weight: 650;
 }}
 
-/* ── Progress bar ── */
-QProgressBar {{
-    background: rgba(255,255,255,0.07);
-    border: none;
-    border-radius: 3px;
-    height: 4px;
-    text-align: center;
-    color: transparent;
-}}
-QProgressBar::chunk {{
-    background: {ACCENT};
-    border-radius: 3px;
-}}
-
-/* ── Tabs ── */
-QTabWidget::pane {{
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-    background: {BG_PANEL};
-}}
+/* Tabs */
+QTabWidget::pane {{ border: 1px solid {c['line']}; background: {c['card']}; border-radius: 9px; }}
 QTabBar::tab {{
     background: transparent;
-    padding: 8px 16px;
-    color: {FG_MUT};
+    color: {c['muted']};
+    border: none;
     border-bottom: 2px solid transparent;
+    padding: 8px 13px;
 }}
-QTabBar::tab:selected {{
-    color: {ACCENT};
-    border-bottom: 2px solid {ACCENT};
-}}
-QTabBar::tab:hover {{
-    color: {FG_SEC};
-}}
+QTabBar::tab:selected {{ color: {c['accent']}; border-bottom: 2px solid {c['accent']}; }}
+QTabBar::tab:hover {{ color: {c['text']}; }}
 
-/* ── ScrollBar ── */
-QScrollBar:vertical {{
-    background: transparent;
-    width: 6px;
-    margin: 0;
-}}
-QScrollBar::handle:vertical {{
-    background: rgba(255,255,255,0.15);
+/* Progress */
+QProgressBar {{
+    background: {c['panel']};
+    border: none;
     border-radius: 3px;
-    min-height: 40px;
+    min-height: 5px;
+    max-height: 5px;
+    color: transparent;
 }}
-QScrollBar::handle:vertical:hover {{
-    background: rgba(255,255,255,0.25);
-}}
-QScrollBar::add-line, QScrollBar::sub-line {{ background: none; border: none; }}
-QScrollBar:horizontal {{
-    background: transparent;
-    height: 6px;
-}}
-QScrollBar::handle:horizontal {{
-    background: rgba(255,255,255,0.15);
-    border-radius: 3px;
-}}
+QProgressBar::chunk {{ background: {c['accent']}; border-radius: 3px; }}
 
-/* ── Status bar ── */
+/* Status / chrome */
 QStatusBar {{
-    background: #0d0d0d;
-    border-top: 1px solid {BORDER};
-    color: {FG_MUT};
-    font-size: 11px;
+    background: {c['sidebar']};
+    border-top: 1px solid {c['line']};
+    color: {c['muted2']};
+    font-size: 10px;
 }}
-
-/* ── Splitter ── */
-QSplitter::handle {{
-    background: {BORDER};
-    width: 1px;
-}}
-
-/* ── Check / Radio ── */
-QCheckBox {{ spacing: 6px; }}
+QStatusBar QLabel {{ color: {c['muted2']}; }}
+QSplitter::handle {{ background: {c['line']}; width: 1px; }}
+QCheckBox {{ color: {c['muted']}; spacing: 7px; }}
 QCheckBox::indicator {{
     width: 16px; height: 16px;
-    border: 1px solid rgba(255,255,255,0.2);
+    border: 1px solid {c['line']};
     border-radius: 4px;
-    background: {BG_INPUT};
+    background: {c['input']};
 }}
-QCheckBox::indicator:checked {{
-    background: {ACCENT};
-    border-color: {ACCENT};
-    image: url(none);
-}}
-
-/* ── Tooltip ── */
+QCheckBox::indicator:checked {{ background: {c['accent']}; border-color: {c['accent']}; }}
 QToolTip {{
-    background: {BG_CARD};
-    border: 1px solid {BORDER};
-    color: {FG_PRI};
-    border-radius: 5px;
-    padding: 4px 8px;
+    background: {c['card']};
+    color: {c['text']};
+    border: 1px solid {c['line']};
+    padding: 5px 8px;
 }}
-
-/* ── Message box ── */
-QMessageBox {{
-    background: {BG_CARD};
-}}
-QMessageBox QPushButton {{
-    min-width: 80px;
-}}
-
-/* ── Group box ── */
+QMessageBox {{ background: {c['card']}; color: {c['text']}; }}
 QGroupBox {{
-    border: 1px solid {BORDER};
-    border-radius: 8px;
+    border: 1px solid {c['line']};
+    border-radius: 9px;
     margin-top: 12px;
     padding-top: 8px;
-    color: {FG_SEC};
-    font-size: 11px;
-    letter-spacing: 0.06em;
+    color: {c['muted']};
 }}
-QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 4px;
-    color: {FG_MUT};
-    font-size: 11px;
-}}
+QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {c['muted']}; }}
+QScrollBar:vertical {{ background: transparent; width: 7px; margin: 0; }}
+QScrollBar::handle:vertical {{ background: {c['line']}; border-radius: 3px; min-height: 36px; }}
+QScrollBar:horizontal {{ background: transparent; height: 7px; }}
+QScrollBar::handle:horizontal {{ background: {c['line']}; border-radius: 3px; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ background: none; border: none; }}
 """
+
+
+def get_stylesheet(theme: str) -> str:
+    """Return the requested Orion theme, falling back to Nightfall."""
+    return _build(theme if theme in _THEMES else "dark")
+
+
+DARK_STYLESHEET = get_stylesheet("dark")
+LIGHT_STYLESHEET = get_stylesheet("light")
