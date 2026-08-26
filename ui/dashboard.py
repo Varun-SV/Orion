@@ -260,11 +260,30 @@ class DashboardPanel(QWidget):
                 DashboardPanel._clear_layout(child)
 
     def refresh(self) -> None:
-        stats = self._db.get_stats()
-        total = stats["total"]
-        pending = stats["pending"]
-        moved = stats["moved"]
-        errors = stats["errors"]
+        video_items = self._db.get_scan_items()
+        music_items = self._db.get_music_items()
+        book_items = self._db.get_book_items()
+        resolved_video = {r["original_name"] for r in self._db.get_all_rename_choices()}
+
+        total = len(video_items) + len(music_items) + len(book_items)
+        pending = sum(
+            1 for item in video_items
+            if item["status"] != "moved" and item["name"] not in resolved_video
+        )
+        pending += sum(
+            1 for item in music_items
+            if item["status"] != "moved" and not self._db.get_music_rename_choice(item["source_path"])
+        )
+        pending += sum(
+            1 for item in book_items
+            if item["status"] != "moved" and not self._db.get_book_rename_choice(item["source_path"])
+        )
+        moved = sum(1 for item in video_items if item["status"] == "moved")
+        moved += sum(1 for item in music_items if item["status"] == "moved")
+        moved += sum(1 for item in book_items if item["status"] == "moved")
+        errors = sum(1 for item in video_items if item["status"] == "error")
+        errors += sum(1 for item in music_items if item["status"] == "error")
+        errors += sum(1 for item in book_items if item["status"] == "error")
 
         self._total.set_value(str(total))
         self._pending.set_value(str(pending))
@@ -277,6 +296,9 @@ class DashboardPanel(QWidget):
         elif pending:
             self._hero.setText("Your library is on course.")
             self._subtitle.setText("The route is clear; the remaining decisions are waiting in Review Queue.")
+        elif total and moved < total:
+            self._hero.setText("The next route is plotted.")
+            self._subtitle.setText("Your remaining tracked items have decisions ready in their library workspaces.")
         elif total:
             self._hero.setText("The constellation is clear.")
             self._subtitle.setText("Everything Orion currently tracks is organised and no issues are blocking the route.")
@@ -295,27 +317,59 @@ class DashboardPanel(QWidget):
         self._navigator_chip.style().unpolish(self._navigator_chip)
         self._navigator_chip.style().polish(self._navigator_chip)
 
-        self._refresh_attention()
+        self._refresh_attention(video_items, music_items, book_items, resolved_video)
         self._refresh_routes(sources, destinations)
         self._refresh_activity()
 
-    def _refresh_attention(self) -> None:
+    def _refresh_attention(
+        self,
+        video_items: list[dict],
+        music_items: list[dict],
+        book_items: list[dict],
+        resolved_video: set[str],
+    ) -> None:
         self._clear_layout(self._attention_layout)
-        rows = []
-        for item in self._db.get_scan_items():
+        rows: list[tuple[str, str, str, str]] = []
+
+        for item in video_items:
             if item["status"] == "error":
-                rows.append((item["name"], "The last operation reported an error for this item.", "ISSUE", "danger"))
+                rows.append((item["name"], "The last video operation reported an error for this item.", "ISSUE", "danger"))
+        for item in music_items:
+            if item["status"] == "error":
+                rows.append((item.get("filename") or item["source_path"], "The music workflow reported an error for this item.", "ISSUE", "danger"))
+        for item in book_items:
+            if item["status"] == "error":
+                rows.append((item.get("filename") or item["source_path"], "The book workflow reported an error for this item.", "ISSUE", "danger"))
+
         if len(rows) < 4:
-            resolved = {r["original_name"] for r in self._db.get_all_rename_choices()}
-            for item in self._db.get_scan_items():
-                if item["status"] == "moved" or item["name"] in resolved:
+            for item in video_items:
+                if item["status"] in {"moved", "error"} or item["name"] in resolved_video:
                     continue
-                rows.append((item["name"], f"{item['detected_category'] or 'Media'} still needs a match decision.", "REVIEW", "warn"))
+                rows.append((item["name"], f"{item['detected_category'] or 'Video'} still needs a match decision.", "REVIEW", "warn"))
+                if len(rows) >= 4:
+                    break
+        if len(rows) < 4:
+            for item in music_items:
+                if item["status"] in {"moved", "error"} or self._db.get_music_rename_choice(item["source_path"]):
+                    continue
+                rows.append((item.get("filename") or item["source_path"], "Music metadata still needs a decision.", "REVIEW", "warn"))
+                if len(rows) >= 4:
+                    break
+        if len(rows) < 4:
+            for item in book_items:
+                if item["status"] in {"moved", "error"} or self._db.get_book_rename_choice(item["source_path"]):
+                    continue
+                rows.append((item.get("filename") or item["source_path"], "Book metadata still needs a decision.", "REVIEW", "warn"))
                 if len(rows) >= 4:
                     break
 
         if not rows:
-            clear = SignalRow("No blocking signals", "Orion has no unresolved video-library decisions in the current scan.", "CLEAR", "good")
+            clear = SignalRow(
+                "No blocking signals",
+                "Orion has no unresolved media decisions in the current library state.",
+                "CLEAR",
+                "good",
+            )
             self._attention_layout.addWidget(clear)
             return
 
