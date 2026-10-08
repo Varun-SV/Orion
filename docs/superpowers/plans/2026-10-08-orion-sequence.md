@@ -7,7 +7,9 @@ Replacement PR: https://github.com/Varun-SV/Orion/pull/3.
 2. [Connected UI](2026-10-08-orion-ui.md): approved appearance, real collections/review, plans/jobs/activity, onboarding/settings/connections, production browser QA.
 3. [Integrations and release](2026-10-08-orion-integrations-release.md): presets/comparison/watching/reports, Jellyfin/Emby/gaps, journalled sidecars, full review/CI/packaging.
 
-All three plans are required for the requested scope. Each has failing-test-first tasks, exact service boundaries and acceptance checks. Engine task 6 supplies UI and integration API contracts. Integration tasks extend those contracts; corresponding frontend components/tests are included in their deliverables. No task can claim completion using prototype-only checks.
+4. [GitHub delivery](2026-10-08-orion-github-delivery.md): required CI, Windows draft releases, main protection and the tested public Pages project site.
+
+All four plans are required for the requested scope. Each has failing-test-first tasks, exact service boundaries and acceptance checks. Engine task 6 supplies UI and integration API contracts. Integration tasks extend those contracts; corresponding frontend components/tests are included in their deliverables. No task can claim completion using prototype-only checks.
 
 Execution choice pending user review: native execution in this chat is recommended to maintain continuity across the shared engine interfaces, with one independent whole-branch review. Subagent-driven execution is also available with per-task review gates. Source PRs #1 and #2 are closed without branch deletion; their intentions are traced in the spec.
 

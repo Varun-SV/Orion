@@ -110,3 +110,5 @@ Run before packaging updates; expect missing bundle-resource behavior.
 ## Completion contract
 
 Every approved spec section and both source PR goal sets must map to implemented behavior/tests. No demo percentages, simulated jobs or static success badges may remain in production. PR history shows documentation first, then reviewable code commits. No merge or source-branch deletion is authorised.
+
+GitHub delivery is additionally required by the user's follow-up. Packaging in task 4 supplies the bundle/build commands consumed by [the GitHub delivery plan](2026-10-08-orion-github-delivery.md); that plan owns exact CI gating, release automation, branch protection and Pages implementation/verification. These are part of PR #3, not a later optional project.
