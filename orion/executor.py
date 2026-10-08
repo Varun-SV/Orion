@@ -74,7 +74,7 @@ class Executor:
             plan = self.planner.get(plan_id)
             if revision != plan.revision:
                 raise ValueError('Plan revision is stale')
-            self.reconcile(plan_id)
+            self.reconcile(plan_id,context)
             operations = self.operations(plan_id)
             # A known finalised destination is handled below, not by a fresh
             # preview that would mistake our own published file for a collision.
@@ -170,7 +170,7 @@ class Executor:
         self._finish(op,context)
         context.progress('Organising',index+1,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
 
-    def _destination_matches(self,op):
+    def _destination_matches(self,op,context=None):
         destination = Path(op.destination)
         details = op.verification
         if not destination.is_file() or destination.is_symlink() or not details.get('sha256'):
@@ -179,11 +179,11 @@ class Executor:
         expected = details.get('final_signature') or (details.get('temp_signature') if details.get('mode')=='copy' else op.expected_signature)
         if not expected or any(observed.get(key) != expected.get(key) for key in ('device','inode','size','mtime_ns')):
             return False
-        return self.fs.hash(destination) == details['sha256']
+        return self.fs.hash(destination,context) == details['sha256']
 
     def _finish(self,op,context):
         self._safe_roots(op)
-        if not self._destination_matches(op):
+        if not self._destination_matches(op,context):
             raise ValueError('Published destination changed; preserve any source')
         source = Path(op.source)
         if source.exists():
@@ -193,17 +193,18 @@ class Executor:
             self.fs.remove_source(source,op.expected_signature)
         self._journal(op,'completed',final_signature=signature(Path(op.destination)),error=None)
 
-    def reconcile(self,plan_id=None) -> RecoverySummary:
+    def reconcile(self,plan_id=None,context=None) -> RecoverySummary:
         with self._lock:
             with self.store.transaction() as conn:
                 rows = conn.execute('SELECT data FROM orion_operations' + (' WHERE plan_id=?' if plan_id else ''),(plan_id,) if plan_id else ()).fetchall()
             report = RecoverySummary()
             for row in rows:
+                if context and context.cancelled(): raise Cancelled()
                 op = Operation.model_validate_json(row['data'])
                 if op.state in ('pending','completed'): continue
                 try:
                     self._safe_roots(op)
-                    if self._destination_matches(op):
+                    if self._destination_matches(op,context):
                         source = Path(op.source)
                         state = 'finalised' if source.exists() else 'completed'
                         self._journal(op,state,final_signature=signature(Path(op.destination)))

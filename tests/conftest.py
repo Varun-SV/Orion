@@ -44,3 +44,12 @@ def library(tmp_path):
     store = Store(tmp_path / 'test.db')
     store.migrate()
     return Library(store)
+
+@pytest.fixture(autouse=True)
+def isolated_keychain(monkeypatch):
+    import keyring
+    vault = {}
+    monkeypatch.setattr(keyring,'get_password',lambda service,name:vault.get((service,name)))
+    monkeypatch.setattr(keyring,'set_password',lambda service,name,value:vault.__setitem__((service,name),value))
+    monkeypatch.setattr(keyring,'delete_password',lambda service,name:vault.pop((service,name),None))
+    return vault

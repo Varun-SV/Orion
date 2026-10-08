@@ -10,7 +10,7 @@ from orion.providers import ProviderError
 from orion.store import safe_metadata,is_secret,utcnow
 
 TERMINAL = {'completed','failed','cancelled','interrupted'}
-WRITERS = {'organise','undo','sidecars'}
+WRITERS = {'organise','undo','sidecars','recovery'}
 
 def serializable(value):
     if hasattr(value,'model_dump'):
