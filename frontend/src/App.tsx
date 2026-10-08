@@ -1,26 +1,239 @@
-import {useEffect,useState} from 'react';
-import type {Icon} from 'react-feather';
-import {Activity,Aperture,BookOpen,CheckCircle,Film,Grid,HardDrive,Monitor,Music,Search,Shield,Sliders,Star,Sun,Tv,List,Link as LinkIcon,Layers} from 'react-feather';
-import {WorkspaceProvider,useWorkspace} from './state/WorkspaceProvider';
-import {collections,type Kind} from './types';
-import {Overview} from './pages/Overview';
-import {Library} from './pages/Library';
-import {Review} from './pages/Review';
-import {Plans} from './pages/Plans';
-import {Jobs} from './pages/Jobs';
-import {Setup} from './pages/Setup';
-import {Connections} from './pages/Connections';
-import {Settings} from './pages/Settings';
-import {Activity as ActivityPage} from './pages/Activity';
-import {navigate} from './state/navigation';
-const icons={movies:Film,series:Tv,anime:Sun,anime_films:Star,web_series:Monitor,music:Music,books:BookOpen};
-export const navigation: [string,string,Icon][]=[['overview','Overview',Grid],['review','Match review',CheckCircle],...Object.entries(collections).map(([id,name])=>[id,name,icons[id as Kind]] as [string,string,Icon]),['plans','Plans',Layers],['jobs','Jobs',List],['sources','Sources & destinations',HardDrive],['connections','Connections',LinkIcon],['activity','Activity',Activity],['settings','Settings',Sliders]];
+import { useEffect, useState } from 'react';
+import type { Icon } from 'react-feather';
+import {
+  Activity,
+  Aperture,
+  BookOpen,
+  CheckCircle,
+  Film,
+  Grid,
+  HardDrive,
+  Monitor,
+  Music,
+  Search,
+  Shield,
+  Sliders,
+  Star,
+  Sun,
+  Tv,
+  List,
+  Link as LinkIcon,
+  Layers,
+} from 'react-feather';
+import { WorkspaceProvider, useWorkspace } from './state/WorkspaceProvider';
+import { collections, type Kind } from './types';
+import { Overview } from './pages/Overview';
+import { Library } from './pages/Library';
+import { Review } from './pages/Review';
+import { Plans } from './pages/Plans';
+import { Jobs } from './pages/Jobs';
+import { Setup } from './pages/Setup';
+import { Connections } from './pages/Connections';
+import { Settings } from './pages/Settings';
+import { Activity as ActivityPage } from './pages/Activity';
+import { navigate } from './state/navigation';
+const icons = {
+  movies: Film,
+  series: Tv,
+  anime: Sun,
+  anime_films: Star,
+  web_series: Monitor,
+  music: Music,
+  books: BookOpen,
+};
+export const navigation: [string, string, Icon][] = [
+  ['overview', 'Overview', Grid],
+  ['review', 'Match review', CheckCircle],
+  ...Object.entries(collections).map(
+    ([id, name]) => [id, name, icons[id as Kind]] as [string, string, Icon],
+  ),
+  ['plans', 'Plans', Layers],
+  ['jobs', 'Jobs', List],
+  ['sources', 'Sources & destinations', HardDrive],
+  ['connections', 'Connections', LinkIcon],
+  ['activity', 'Activity', Activity],
+  ['settings', 'Settings', Sliders],
+];
 
-function Shell(){
- const {overview,settings,loading,error,refresh,saveSettings}=useWorkspace();
- const [route,setRoute]=useState(location.hash.slice(1)||'overview'),[query,setQuery]=useState(''),[actionError,setActionError]=useState('');
- useEffect(()=>{const handler=()=>setRoute(location.hash.slice(1)||'overview');addEventListener('hashchange',handler);return()=>removeEventListener('hashchange',handler);},[]);
- const label=navigation.find(([id])=>id===route)?.[1]??'Overview';
- return <><a className="skip-link" href="#main">Skip to content</a><aside className="sidebar"><a className="brand" href="#overview"><Aperture/><span>Orion<span className="brand-dot">.</span></span></a><div className="workspace"><span className="avatar">O</span><div>Your library<small>Personal workspace</small></div></div><nav aria-label="Main navigation">{navigation.map(([id,name,Icon],index)=><div key={id}>{(index===2||index===9)&&<p className="nav-label">{index===2?'YOUR COLLECTION':'WORKSPACE'}</p>}<button className={'nav-item '+(route===id?'active':'')} aria-current={route===id?'page':undefined} onClick={()=>{setQuery('');navigate(id);}}><Icon/>{name}{id==='review'&&!!overview?.review&&<span className="count">{overview.review}</span>}</button></div>)}</nav><div className="sidebar-bottom"><div className="local-note"><Shield/><div>Your files. Your space.<small>Running on this computer</small></div></div></div></aside><div className="shell"><header className="topbar"><span className="breadcrumb">Workspace <span>/</span> {label}</span><label className="search"><Search/><input type="search" value={query} placeholder="Find something in your library…" aria-label="Search library" onChange={e=>{setQuery(e.target.value);if(e.target.value)navigate('library');}}/></label><button className="icon-button" aria-label="Change appearance" onClick={()=>void saveSettings({theme:settings?.theme==='ivory'?'clay':settings?.theme==='clay'?'night':'ivory'}).then(()=>setActionError('')).catch(e=>setActionError(e.message))}><Sun/></button></header><label className="mobile-navigation">Go to<select aria-label="Navigate workspace" value={route} onChange={e=>{setQuery('');navigate(e.target.value);}}>{navigation.map(([id,name])=><option key={id} value={id}>{name}</option>)}{route==='library'&&<option value="library">Search results</option>}</select></label><main id="main" tabIndex={-1}>{actionError&&<p role="alert">{actionError}</p>}{error?<div className="empty"><h1>Engine unavailable</h1><p role="alert">{error}</p><button className="primary" onClick={refresh}>Try again</button></div>:loading?<p role="status">Opening your workspace…</p>:<><p className="eyebrow">YOUR PERSONAL MEDIA WORKSPACE</p><div className="page-head"><div><h1>{route==='overview'&&!overview?.sources?'Connect your sources':route==='library'?'Your library':label}</h1><p className="subtitle">{route==='overview'?'A place for everything. A little more room for what you love.':'Thoughtful organisation, with every change in your hands.'}</p></div></div>{route==='sources'&&<Setup/>}{route==='connections'&&<Connections/>}{route==='settings'&&<Settings/>}{route==='plans'&&<Plans/>}{route==='jobs'&&<Jobs/>}{route==='activity'&&<ActivityPage/>}{route==='overview'&&<Overview/>}{route==='review'&&<Review/>}{(route==='library'||route in collections)&&<Library key={route} kind={route in collections?route as Kind:undefined} query={query}/>}</>}</main><footer><span>ORION <span className="footer-dot">•</span> A place for everything.</span><span>Local files · Reviewed changes</span></footer></div></>;
+function Shell() {
+  const { overview, settings, loading, error, refresh, saveSettings } = useWorkspace();
+  const [route, setRoute] = useState(location.hash.slice(1) || 'overview'),
+    [query, setQuery] = useState(''),
+    [actionError, setActionError] = useState('');
+  useEffect(() => {
+    const handler = () => setRoute(location.hash.slice(1) || 'overview');
+    addEventListener('hashchange', handler);
+    return () => removeEventListener('hashchange', handler);
+  }, []);
+  const label = navigation.find(([id]) => id === route)?.[1] ?? 'Overview';
+  return (
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <aside className="sidebar">
+        <a className="brand" href="#overview">
+          <Aperture />
+          <span>
+            Orion<span className="brand-dot">.</span>
+          </span>
+        </a>
+        <div className="workspace">
+          <span className="avatar">O</span>
+          <div>
+            Your library<small>Personal workspace</small>
+          </div>
+        </div>
+        <nav aria-label="Main navigation">
+          {navigation.map(([id, name, Icon], index) => (
+            <div key={id}>
+              {(index === 2 || index === 9) && (
+                <p className="nav-label">{index === 2 ? 'YOUR COLLECTION' : 'WORKSPACE'}</p>
+              )}
+              <button
+                className={'nav-item ' + (route === id ? 'active' : '')}
+                aria-current={route === id ? 'page' : undefined}
+                onClick={() => {
+                  setQuery('');
+                  navigate(id);
+                }}
+              >
+                <Icon />
+                {name}
+                {id === 'review' && !!overview?.review && (
+                  <span className="count">{overview.review}</span>
+                )}
+              </button>
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="local-note">
+            <Shield />
+            <div>
+              Your files. Your space.<small>Running on this computer</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <div className="shell">
+        <header className="topbar">
+          <span className="breadcrumb">
+            Workspace <span>/</span> {label}
+          </span>
+          <label className="search">
+            <Search />
+            <input
+              type="search"
+              value={query}
+              placeholder="Find something in your library…"
+              aria-label="Search library"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (e.target.value) navigate('library');
+              }}
+            />
+          </label>
+          <button
+            className="icon-button"
+            aria-label="Change appearance"
+            onClick={() =>
+              void saveSettings({
+                theme:
+                  settings?.theme === 'ivory'
+                    ? 'clay'
+                    : settings?.theme === 'clay'
+                      ? 'night'
+                      : 'ivory',
+              })
+                .then(() => setActionError(''))
+                .catch((e) => setActionError(e.message))
+            }
+          >
+            <Sun />
+          </button>
+        </header>
+        <label className="mobile-navigation">
+          Go to
+          <select
+            aria-label="Navigate workspace"
+            value={route}
+            onChange={(e) => {
+              setQuery('');
+              navigate(e.target.value);
+            }}
+          >
+            {navigation.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+            {route === 'library' && <option value="library">Search results</option>}
+          </select>
+        </label>
+        <main id="main" tabIndex={-1}>
+          {actionError && <p role="alert">{actionError}</p>}
+          {error ? (
+            <div className="empty">
+              <h1>Engine unavailable</h1>
+              <p role="alert">{error}</p>
+              <button className="primary" onClick={refresh}>
+                Try again
+              </button>
+            </div>
+          ) : loading ? (
+            <p role="status">Opening your workspace…</p>
+          ) : (
+            <>
+              <p className="eyebrow">YOUR PERSONAL MEDIA WORKSPACE</p>
+              <div className="page-head">
+                <div>
+                  <h1>
+                    {route === 'overview' && !overview?.sources
+                      ? 'Connect your sources'
+                      : route === 'library'
+                        ? 'Your library'
+                        : label}
+                  </h1>
+                  <p className="subtitle">
+                    {route === 'overview'
+                      ? 'A place for everything. A little more room for what you love.'
+                      : 'Thoughtful organisation, with every change in your hands.'}
+                  </p>
+                </div>
+              </div>
+              {route === 'sources' && <Setup />}
+              {route === 'connections' && <Connections />}
+              {route === 'settings' && <Settings />}
+              {route === 'plans' && <Plans />}
+              {route === 'jobs' && <Jobs />}
+              {route === 'activity' && <ActivityPage />}
+              {route === 'overview' && <Overview />}
+              {route === 'review' && <Review />}
+              {(route === 'library' || route in collections) && (
+                <Library
+                  key={route}
+                  kind={route in collections ? (route as Kind) : undefined}
+                  query={query}
+                />
+              )}
+            </>
+          )}
+        </main>
+        <footer>
+          <span>
+            ORION <span className="footer-dot">•</span> A place for everything.
+          </span>
+          <span>Local files · Reviewed changes</span>
+        </footer>
+      </div>
+    </>
+  );
 }
-export default function App(){return <WorkspaceProvider><Shell/></WorkspaceProvider>;}
+export default function App() {
+  return (
+    <WorkspaceProvider>
+      <Shell />
+    </WorkspaceProvider>
+  );
+}

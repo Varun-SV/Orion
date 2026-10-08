@@ -1,1 +1,3 @@
-export function navigate(route:string){location.hash=route;}
+export function navigate(route: string) {
+  location.hash = route;
+}

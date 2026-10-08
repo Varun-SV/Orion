@@ -1,4 +1,36 @@
-import {useEffect,useRef,useState} from 'react';
-import {api} from './client';
-import {type Job} from '../types';
-export function useJobMonitor(revision:number,refresh:()=>void){const [jobs,setJobs]=useState<Job[]>([]),[error,setError]=useState('');const previous=useRef('');useEffect(()=>{let mounted=true,timer:ReturnType<typeof setTimeout>;async function poll(){if(document.visibilityState==='hidden'){timer=setTimeout(poll,3000);return;}try{const loaded=await api<Job[]>('/jobs');if(!mounted)return;const signature=loaded.map(j=>j.id+':'+j.state).join('|');if(previous.current&&previous.current!==signature)refresh();previous.current=signature;setJobs(loaded);setError('');}catch(e){if(mounted)setError((e as Error).message);}if(mounted)timer=setTimeout(poll,2000);}void poll();return()=>{mounted=false;clearTimeout(timer);};},[revision,refresh]);return {jobs,error};}
+import { useEffect, useRef, useState } from 'react';
+import { api } from './client';
+import { type Job } from '../types';
+export function useJobMonitor(revision: number, refresh: () => void) {
+  const [jobs, setJobs] = useState<Job[]>([]),
+    [error, setError] = useState('');
+  const previous = useRef('');
+  useEffect(() => {
+    let mounted = true,
+      timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      if (document.visibilityState === 'hidden') {
+        timer = setTimeout(poll, 3000);
+        return;
+      }
+      try {
+        const loaded = await api<Job[]>('/jobs');
+        if (!mounted) return;
+        const signature = loaded.map((j) => j.id + ':' + j.state).join('|');
+        if (previous.current && previous.current !== signature) refresh();
+        previous.current = signature;
+        setJobs(loaded);
+        setError('');
+      } catch (e) {
+        if (mounted) setError((e as Error).message);
+      }
+      if (mounted) timer = setTimeout(poll, 2000);
+    }
+    void poll();
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [revision, refresh]);
+  return { jobs, error };
+}

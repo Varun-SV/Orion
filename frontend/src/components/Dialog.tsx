@@ -1,3 +1,42 @@
-import {useEffect,useRef,type ReactNode} from 'react';
-import {X} from 'react-feather';
-export function Dialog({title,close,children}:{title:string;close:()=>void;children:ReactNode}){const ref=useRef<HTMLDialogElement>(null);const closeRef=useRef(close);closeRef.current=close;useEffect(()=>{const element=ref.current!,previous=document.activeElement as HTMLElement|null;if(element.showModal)element.showModal();else element.setAttribute('open','');const cancel=(e:Event)=>{e.preventDefault();closeRef.current();};element.addEventListener('cancel',cancel);return()=>{element.removeEventListener('cancel',cancel);if(element.close)element.close();previous?.focus();};},[]);return <dialog ref={ref} aria-label={title}><div className="modal-heading"><h2>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={close}><X/></button></div>{children}</dialog>;}
+import { useEffect, useRef, type ReactNode } from 'react';
+import { X } from 'react-feather';
+export function Dialog({
+  title,
+  close,
+  children,
+}: {
+  title: string;
+  close: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    const element = ref.current!,
+      previous = document.activeElement as HTMLElement | null;
+    if (element.showModal) element.showModal();
+    else element.setAttribute('open', '');
+    const cancel = (e: Event) => {
+      e.preventDefault();
+      closeRef.current();
+    };
+    element.addEventListener('cancel', cancel);
+    return () => {
+      element.removeEventListener('cancel', cancel);
+      if (element.close) element.close();
+      previous?.focus();
+    };
+  }, []);
+  return (
+    <dialog ref={ref} aria-label={title}>
+      <div className="modal-heading">
+        <h2>{title}</h2>
+        <button className="icon-button" aria-label="Close dialog" onClick={close}>
+          <X />
+        </button>
+      </div>
+      {children}
+    </dialog>
+  );
+}

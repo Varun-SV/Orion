@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom/vitest';
-import {cleanup} from '@testing-library/react';
-import {afterEach} from 'vitest';
-afterEach(()=>{cleanup();location.hash='';delete document.documentElement.dataset.theme;});
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+afterEach(() => {
+  cleanup();
+  location.hash = '';
+  delete document.documentElement.dataset.theme;
+});
