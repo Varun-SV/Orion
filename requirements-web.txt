@@ -1,0 +1,9 @@
+fastapi>=0.135,<0.136
+pydantic>=2.12,<3
+uvicorn>=0.30,<1
+requests>=2.32,<3
+guessit>=3.8,<4
+mutagen>=1.47,<2
+ebooklib>=0.18,<1
+pypdf>=4,<7
+keyring>=25,<26

@@ -221,3 +221,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Modern Orion frontend/build tooling
+node_modules/
+frontend/dist/
+site/dist/
+playwright-report/
+test-results/
