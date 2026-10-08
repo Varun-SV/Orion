@@ -118,3 +118,39 @@ Preserve OS keychain service names so existing keys are available. Return config
 All stages are required to fulfil the requested scope. Deliver the first connected app for review without pretending later capabilities are complete. Execution tasks, ordering and validation commands belong in the implementation plan after written-spec approval.
 
 Acceptance fixtures cover: safe dry run, no-overwrite conflicts, partial directory batches, cross-volume verification/cancellation, crashes at each journal boundary, source disappearance, externally changed files during undo, identical names across sources, ambiguous legacy choices, unchanged incremental scans, provider errors/rate limits, subtitle/sidecar preservation and database upgrade failure. User-flow checks cover all collections, confirmation alternatives, manual edits, real job progress, reopen/reload, conflict resolution, settings, presets, exports and optional integrations. Finish with a production build and screenshots at desktop/narrow widths. Use generated temporary media fixtures; real personal-media mutation is outside automated verification.
+
+## Consolidated pull-request goals
+
+The user requested closure of every currently open PR after capturing its intended goals, and replacement by one spec-first modernisation PR. Source PR branches are retained; their code is reference material to adapt and verify, not evidence that these capabilities already exist on main.
+
+### PR #1 — Add Jellyfin/Emby server integration and NFO + artwork sidecars
+
+Source: https://github.com/Varun-SV/Orion/pull/1
+Head: 88f06377a380ecf91e3b1ae2caff1583a54fdcf9 (`claude/application-uniqueness-review-eau5e0`).
+
+Carry forward these requirements in addition to the original spec:
+
+- Support both Jellyfin and Emby through an explicit server type/URL/key configuration; retain credentials in the OS keychain. Connection tests show the actual server name/version or a specific error. Select a configured server user when required rather than silently taking the first account.
+- During review, search the configured server library and show potential existing titles, provider IDs where available, and resolution/edition evidence. Treat lookup failure as unavailable, not as proof that no duplicate exists. Pagination must avoid truncating server-library discovery.
+- Optional auto-refresh after successful video/music/book batches is an explicit persisted setting; report/retry refresh failures independently of successful file operations.
+- Add an Episode gaps view comparing mapped server series/episodes with TMDb season data. Show season/episode/title/air-date; exclude unaired entries and explicitly handle specials. Missing/ambiguous provider mappings require selection. Server/catalogue failures show unavailable results rather than declaring an entire season missing.
+- Opt-in NFO and artwork output, off by default and remembered per collection/profile. Preserve provider ID, title, year, plot, cover URL and MusicBrainz release ID from selection through planning and execution. Generate movie.nfo, tvshow.nfo, artist.nfo and album.nfo, plus available poster.jpg, album cover.jpg and book covers from the existing providers. XML content is escaped correctly. Never overwrite an existing user sidecar.
+- Include enabled sidecar creation in the immutable plan and journal. Fetch artwork through bounded background jobs; provider failures must not destroy media or existing sidecars. Undo removes only unchanged sidecars created by the recorded batch. Music covers require a release ID; when only embedded tags exist, show the unavailable-artwork reason. Existing subtitles/NFO/artwork remain preserved during moves.
+- Per-episode NFO generation is an optional profile setting using fetched episode metadata and the same no-overwrite/journal rules; rate-limit and cache episode lookups.
+
+### PR #2 — UI: introduce Orion Navigator workspace
+
+Source: https://github.com/Varun-SV/Orion/pull/2
+Head: a3a65128da550a93ea6c9f6a5815c76b4bbfb81e (`feat/orion-navigator-ui`).
+
+Keep the user-approved Claude/Argus-inspired prototype as the visual authority while carrying forward the workflow goals:
+
+- Unified review queue across video, music and books; searchable across all media, with status/category filters and live counts.
+- Operation Plans surface backed by the actual planner/executor, and a Libraries hub that keeps every category reachable. Preserve an Orion-specific brand identity and persistent light/dark choices, including the approved clay alternative.
+- Connections surface lists every provider, including AcoustID, and distinguishes locally configured credentials from a successful live health check. Describe filesystem-only mode when no server is configured. Do not advertise Plex as implemented.
+- All newly migrated screens use native light/dark design tokens; no unreadable legacy dark-panel islands. Settings changes update sidebar/overview state immediately.
+- Overview metrics aggregate all media tables. Failed approved operations remain visible in the queue/job centre. Queue queries use indexed joins/batched queries rather than one synchronous SQL query per item. Global search resets hidden category filters. In-place music/book plans do not require a separate destination root.
+
+Regression goals above were grounded in PR #2 review comments on commit e8e6109a8349f4c06a8904e67c9cf600cc8135b4. Some may have been addressed in later commits; retain them as regression tests for the new runtime.
+
+Delivery stage 2 additionally includes Libraries, Operation Plans and Connections. Stage 3 additionally includes both-server discovery/duplicate checks, Episode gaps, optional NFO/artwork and per-episode sidecars. Acceptance adds failed-approved queue visibility, all-media metrics, global search after filtering, in-place readiness, provider-list coverage, theme legibility, paginated server results, offline episode catalogue behavior, metadata persistence and no-overwrite sidecar output/undo.
