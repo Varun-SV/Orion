@@ -73,20 +73,32 @@ class Library:
         return item
 
     def decide(self, item_id: str, decision: MatchDecision) -> MediaItem:
-        item = self.get(item_id)
         if decision.item_id != item_id or not str(decision.metadata.get('title','')).strip():
             raise ValueError('Decision must identify this item and supply a title')
         decision = decision.model_copy(update={'metadata':safe_metadata(decision.metadata)})
-        item.decision = decision
-        item.status = 'approved'
-        return self.upsert(item)
+        with self.store.transaction() as conn:
+            changed=conn.execute("UPDATE orion_items SET decision=?,status='approved',updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
+            if not changed:raise KeyError('Item not found')
+        return self.get(item_id)
+
+    def clear_decision(self,item_id):
+        with self.store.transaction() as conn:
+            changed=conn.execute("UPDATE orion_items SET decision=NULL,status='pending',updated_at=? WHERE id=?",(utcnow(),item_id)).rowcount
+            if not changed:raise KeyError('Item not found')
+        return self.get(item_id)
 
     def annotate(self, item_id, **metadata):
-        item = self.get(item_id)
-        item.metadata.update(safe_metadata(metadata))
-        return self.upsert(item)
+        updates=safe_metadata(metadata)
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT metadata FROM orion_items WHERE id=?',(item_id,)).fetchone()
+            if not row:raise KeyError('Item not found')
+            current=json.loads(row[0]);current.update(updates)
+            conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',(json.dumps(current),utcnow(),item_id))
+        return self.get(item_id)
 
     def status(self, item_id, status):
-        item = self.get(item_id)
-        item.status = status
-        return self.upsert(item)
+        if status not in ('pending','approved','organised','error','unavailable','no_match'):raise ValueError('Unknown item state')
+        with self.store.transaction() as conn:
+            changed=conn.execute('UPDATE orion_items SET status=?,updated_at=? WHERE id=?',(status,utcnow(),item_id)).rowcount
+            if not changed:raise KeyError('Item not found')
+        return self.get(item_id)

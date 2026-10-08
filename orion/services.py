@@ -18,6 +18,7 @@ class Services:
     executor: Executor
     jobs: object = None
     watcher: object = None
+    server: object = None
 
     def lookup(self,payload,context):
         item = self.library.get(payload['item_id'])
@@ -38,11 +39,16 @@ class Services:
         return {'recovery':lambda p,c:self.executor.reconcile(context=c),
                 'scan':lambda p,c:self.discovery.scan(p['source_ids'],p.get('deep',False),c),
                 'lookup':self.lookup,
-                'organise':lambda p,c:self.executor.execute(p['plan_id'],p['revision'],c),
+                'organise':self.organise,
                 'undo':lambda p,c:self.executor.execute(p['plan_id'],p['revision'],c),
                 'provider_test':self.test_provider,
                 'comparison':self.compare,
-                'watch_scan':lambda p,c:self.watcher.scan_ready(p,c)}
+                'watch_scan':lambda p,c:self.watcher.scan_ready(p,c),
+                **{kind:(lambda p,c,kind=kind:self.server.run(kind,p,c)) for kind in ('server_test','server_discover','server_refresh','server_hints','episode_gaps')}}
+
+    def organise(self,payload,context):
+        result = self.executor.execute(payload['plan_id'],payload['revision'],context)
+        return self.server.after_local_success(result)
 
     def compare(self,payload,context):
         from orion.duplicates import Duplicates

@@ -40,10 +40,7 @@ def decision(item_id:str,body:MatchDecision,runtime:Runtime):
 
 @router.delete('/items/{item_id}/decision')
 def clear_decision(item_id:str,runtime:Runtime):
-    item = runtime.library.get(item_id)
-    item.decision = None
-    item.status = 'pending'
-    return runtime.library.upsert(item)
+    return runtime.library.clear_decision(item_id)
 
 @router.get('/items/{item_id}/candidates')
 def candidates(item_id:str,runtime:Runtime):

@@ -4,6 +4,7 @@ import { useResource } from '../api/useResource';
 import { useWorkspace } from '../state/WorkspaceProvider';
 import { type Provider, type Job } from '../types';
 import { navigate } from '../state/navigation';
+import { ServerControls } from '../components/ServerControls';
 function ProviderCard({ provider: p }: { provider: Provider }) {
   const { refresh } = useWorkspace();
   const [key, setKey] = useState(''),
@@ -125,6 +126,7 @@ function ProviderCard({ provider: p }: { provider: Provider }) {
           </div>
         </form>
       )}
+      <ServerControls />
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
       <button
@@ -143,7 +145,7 @@ export function Connections() {
     <>
       <section className="banner">
         <div>
-          <strong>Filesystem-only mode</strong>
+          <strong>Filesystem-only mode is always available</strong>
           <p>
             Your local library works without a media server. Providers supply metadata when you
             choose to identify an item.
@@ -155,6 +157,7 @@ export function Connections() {
         need no API key; external requests run as bounded, cancellable jobs. Saved secret values are
         never returned to this page.
       </p>
+      <ServerControls />
       {error && <p role="alert">{error}</p>}
       <div className="settings-grid">
         {data?.map((provider) => (

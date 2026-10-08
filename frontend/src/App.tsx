@@ -24,6 +24,7 @@ import { WorkspaceProvider, useWorkspace } from './state/WorkspaceProvider';
 import { collections, type Kind } from './types';
 import { Overview } from './pages/Overview';
 import { Profiles } from './pages/Profiles';
+import { EpisodeGaps } from './pages/EpisodeGaps';
 import { ComparisonPage } from './pages/Comparison';
 import { Library } from './pages/Library';
 import { Review } from './pages/Review';
@@ -55,6 +56,7 @@ export const navigation: [string, string, Icon][] = [
   ['connections', 'Connections', LinkIcon],
   ['profiles', 'Naming presets', Sliders],
   ['comparison', 'Compare versions', Layers],
+  ['gaps', 'Episode gaps', Tv],
   ['activity', 'Activity', Activity],
   ['settings', 'Settings', Sliders],
 ];
@@ -210,6 +212,7 @@ function Shell() {
               {route === 'connections' && <Connections />}
               {route === 'settings' && <Settings />}
               {route === 'profiles' && <Profiles />}
+              {route === 'gaps' && <EpisodeGaps />}
               {route === 'comparison' && <ComparisonPage />}
               {route === 'plans' && <Plans />}
               {route === 'jobs' && <Jobs />}

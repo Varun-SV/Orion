@@ -179,3 +179,38 @@ export interface Comparison {
   version_groups: { item_ids: string[]; evidence: string[] }[];
   errors: { item_id: string; code: string }[];
 }
+export interface ServerStatus {
+  enabled: boolean;
+  url: string;
+  server_type: 'jellyfin' | 'emby';
+  user_id: string;
+  auto_refresh: boolean;
+  configured: boolean;
+  storage: string;
+  health: string;
+  detail: string;
+}
+export interface ServerItem {
+  edition: string;
+  is_virtual: boolean;
+  id: string;
+  name: string;
+  type: string;
+  year: number | null;
+  path: string;
+  resolution: string;
+  provider_ids: Record<string, string>;
+  media_sources: Metadata[];
+  evidence?: string[];
+}
+export interface GapReport {
+  episodes: { season: number; episode: number; title: string; air_date: string; state: string }[];
+  state: string;
+  missing: [number, number][];
+  unaired: [number, number][];
+  unknown_air_date: [number, number][];
+  present: [number, number][];
+  error: string | null;
+  catalogue_cached: boolean;
+  catalogue_updated_at: string;
+}

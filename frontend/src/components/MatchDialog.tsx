@@ -12,6 +12,7 @@ import {
 } from '../types';
 import { Dialog } from './Dialog';
 import { Cover } from './MediaCard';
+import { ServerHints } from './ServerHints';
 interface Lookup {
   items: Candidate[];
   state: string;
@@ -182,6 +183,7 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
           </label>
         ))}
       </div>
+      <ServerHints itemId={item.id} />
       <label className="field">
         Exact filename override (optional)
         <input
