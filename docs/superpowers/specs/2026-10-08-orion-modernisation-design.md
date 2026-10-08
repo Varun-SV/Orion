@@ -1,7 +1,7 @@
 # Orion modernisation design
 
 Date: 2026-10-08
-Status: Proposed for user review. No production migration has begun.
+Status: User-approved design; implementation authorised 2026-10-09. Database and filesystem validation use isolated generated fixtures.
 
 ## Intent and agreed direction
 
