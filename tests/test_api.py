@@ -167,3 +167,16 @@ def test_startup_recovery_does_not_block_api_and_can_be_cancelled(tmp_path,monke
         client.post('/api/v1/jobs/'+recovery['id']+'/cancel')
         assert wait_job(client,recovery['id'])['state']=='cancelled'
         assert exited.wait(1)
+
+def test_review_filter_paginates_all_review_states_including_failed_decisions(client,tmp_path):
+    from orion.models import MediaItem,MatchDecision
+    runtime=client.app.state.services
+    root=tmp_path/'review-filter'
+    root.mkdir()
+    source=runtime.library.add_source(root)
+    for index,status in enumerate(['pending','error','no_match','approved','organised']):
+        runtime.library.upsert(MediaItem(id=str(index),source_id=source['id'],path=str(root/str(index)),kind='movies',status=status,decision=MatchDecision(item_id=str(index),metadata={'title':'Confirmed'}) if status=='error' else None))
+    response=client.get('/api/v1/items?status=review&limit=2&offset=1').json()
+    assert response['total']==3
+    assert [i['status'] for i in response['items']]==['error','no_match']
+    assert response['items'][0]['decision']['metadata']['title']=='Confirmed'

@@ -32,7 +32,9 @@ class Library:
                 raise ValueError('Unknown collection')
             clauses.append('kind=?')
             params.append(kind)
-        if status:
+        if status == 'review':
+            clauses.append("status IN ('pending','error','no_match')")
+        elif status:
             clauses.append('status=?')
             params.append(status)
         if query:
