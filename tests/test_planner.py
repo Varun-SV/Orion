@@ -149,3 +149,22 @@ def test_case_collision_keeps_existing_file(planned):
     plan = planner.create([iid],PlanOptions(destination_id=did))
     assert 'destination_exists' in [i.code for i in plan.issues]
     assert target.read_bytes() == b'other edition'
+
+def test_series_directory_keeps_episode_and_artwork_together(library,tmp_path,context):
+    root = tmp_path/'shows'
+    show = root/'Original show'
+    show.mkdir(parents=True)
+    (show/'Original.Show.S01E02.mkv').write_bytes(b'episode')
+    (show/'poster.jpg').write_bytes(b'poster')
+    sid = library.add_source(root,kind='series')['id']
+    Discovery(library).scan([sid],False,context)
+    item = library.query().items[0]
+    library.decide(item.id,MatchDecision(item_id=item.id,metadata={'title':'Show','year':'2020'}))
+    dest = tmp_path/'library'
+    dest.mkdir()
+    did = item_id('destination',dest)
+    with library.store.transaction() as conn:
+        conn.execute('INSERT INTO orion_destinations VALUES(?,?,?)',(did,str(dest),'Library'))
+    plan = Planner(library).create([item.id],PlanOptions(destination_id=did))
+    assert not plan.issues
+    assert all(str(dest/'Series'/'Show (2020)') in op.destination for op in plan.operations)

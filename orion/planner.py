@@ -67,6 +67,7 @@ class Planner:
         if not options.in_place and options.destination_id not in destinations:
             raise ValueError('Select a configured destination')
         reserved = set()
+        reserved_folders = set()
         def issue(code,detail,item_id='',operation_id=''):
             plan.issues.append(PlanIssue(code=code,detail=detail,item_id=item_id,operation_id=operation_id))
         for iid in dict.fromkeys(item_ids):
@@ -99,7 +100,10 @@ class Planner:
             try:
                 category_path = valid_relative(categories.get(item.kind,{}).get('dest_subpath') or item.kind)
                 base = destination_root if options.in_place else destination_root/category_path
-                pairs = self._layout(item,options,base)
+                pairs = self._layout(item,options,base,reserved_folders)
+            except FileExistsError:
+                issue('destination_exists','Directory already exists; choose a separate version or skip',iid)
+                continue
             except (ValueError,OSError) as exc:
                 issue('invalid_layout',str(exc),iid)
                 continue
@@ -126,7 +130,7 @@ class Planner:
         checked = self._validate(plan)
         return self.save(checked)
 
-    def _layout(self,item,options,base):
+    def _layout(self,item,options,base,reserved_folders):
         source = Path(item.path)
         if item.signature['type'] == 'file':
             layout = Naming.render(item,options.profile).path
@@ -134,6 +138,18 @@ class Planner:
             return [(source,target,item.signature)]
         folder = Naming.render(item,options.profile).path
         folder_target = source.parent/folder if options.in_place else base/folder
+        if normalized(folder_target) != normalized(source):
+            if options.conflict == 'keep_both':
+                original_folder = folder_target
+                version = 2
+                while folder_target.exists() or normalized(folder_target) in reserved_folders:
+                    folder_target = original_folder.with_name(f'{original_folder.name} ({version})')
+                    version += 1
+            elif folder_target.exists() or normalized(folder_target) in reserved_folders:
+                if options.conflict == 'skip':
+                    return []
+                raise FileExistsError('Directory already exists')
+        reserved_folders.add(normalized(folder_target))
         children = item.signature['children']
         mappings = {}
         for relative,expected in children.items():
@@ -148,7 +164,7 @@ class Planner:
                 child = item.model_copy(update={'path':str(file),'signature':expected,'metadata':metadata,
                                                 'decision':MatchDecision(item_id=item.id,provider=item.decision.provider,provider_id=item.decision.provider_id,metadata=metadata,evidence=item.decision.evidence)})
                 rendered = Path(Naming.render(child,options.profile).path)
-                target = folder_target/file.relative_to(source).parent/rendered.name if item.kind in ('movies','anime_films') else (source.parent if options.in_place else base)/rendered
+                target = folder_target/file.relative_to(source).parent/rendered.name if item.kind in ('movies','anime_films') else folder_target.joinpath(*(rendered.parts[1:] if len(rendered.parts)>1 else (rendered.name,)))
                 mappings[relative] = target
         result = []
         for relative,expected in children.items():
