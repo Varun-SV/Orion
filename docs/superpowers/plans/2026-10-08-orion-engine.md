@@ -38,9 +38,11 @@ Create `orion/models.py`, `store.py`, `config.py`, `library.py`, `discovery.py`,
 
 Shared records: `MediaItem{id,source_id,path,kind,status,signature,metadata,decision}`, `MatchDecision{item_id,provider,provider_id,metadata,evidence}`, `OperationPlan{id,revision,operations,issues}`, `Operation{id,plan_id,item_id,kind,source,destination,expected_signature,state,verification}`, `Job{id,kind,state,progress,result,error}`. Pydantic mutation models reject unknown fields; enums constrain kinds/states. Index IDs/paths/search fields; JSON is for typed metadata/details.
 
+
+Define `Page[T]{items,total,offset,limit}`, `Candidate{provider,provider_id,title,year,metadata,evidence}`, and the shared `JobContext` protocol in `orion/models.py` during task 1; protocol methods are `cancelled() -> bool` and `progress(phase: str, items_done: int, items_total: int, bytes_done: int = 0, bytes_total: int = 0) -> None`. Discovery/task-2 tests may provide a plain fixture context before the durable manager exists. Task 3 owns `NamingProfile`, `RelativeLayout` and `PlanOptions`; task 4 owns `BatchResult`/`RecoverySummary`; task 5 implements the shared context. Define `ScanSummary` alongside discovery. Test snippets use fixture helpers in `tests/conftest.py` for seeded stores and fault reports; they are not extra undocumented production APIs. Integration `SidecarSpec` and server/gap records belong to their named integration modules.
 ### Task 1: Versioned storage and legacy import
 
-**Files:** Create `orion/models.py`, `store.py`, `config.py`, `tests/test_migrations.py`, `tests/test_identity.py`, dependency/test configuration.
+**Files:** Create `orion/models.py`, `store.py`, `config.py`, `tests/test_migrations.py`, `tests/test_identity.py`, dependency/test configuration and `tests/conftest.py` fixture helpers.
 **Interfaces:** `Store(db_path: Path).migrate() -> Path | None`, `Store.transaction()` gives a short-lived connection; `Config(data_dir: Path | None = None)` preserves existing keychain names and allows isolated test roots.
 
 - [ ] Write migration/identity tests against actual old SQLite schemas. Test all-media/settings preservation, upgrade backup, rollback after injected migration failure, same-name sources, ambiguous legacy choices and secret exclusion. Core assertions:
@@ -131,3 +133,4 @@ Also test isolated data root, existing instance/occupied port, static SPA fallba
 - [ ] Run full pytest and `python -m compileall orion`; expect passing. Commit/push `feat: serve Orion local API and launcher` to PR #3.
 
 Next execute the UI plan, then integrations/release. The engine/API is independently testable before UI connection.
+
