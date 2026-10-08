@@ -205,6 +205,18 @@ try {
   await page
     .getByRole("button", { name: "Confirm match", exact: true })
     .click();
+  await navigate("profiles", "Naming presets");
+  await page.getByRole("combobox", {name:"Naming preset"}).selectOption("default-movies");
+  await check("Optional sidecars default off and persist only after explicit saving", async()=>{
+    await expect(page.getByRole("checkbox",{name:"Write NFO metadata",exact:true})).not.toBeChecked();
+    await expect(page.getByRole("checkbox",{name:"Download artwork",exact:true})).not.toBeChecked();
+    await page.getByRole("checkbox",{name:"Write NFO metadata",exact:true}).check();
+    await page.getByRole("button",{name:"Save preset",exact:true}).click();
+    await expect(page.getByText("Preset saved. Existing previews retain their recorded version.")).toBeVisible();
+    const profiles=await request("/profiles");
+    assert.equal(profiles.find(p=>p.id==="default-movies").nfo_enabled,true);
+  });
+  await screenshot("production-presets.png");
   await navigate("movies", "Movies");
   await page
     .getByRole("checkbox", { name: "Select Arrival", exact: true })
@@ -224,7 +236,8 @@ try {
   ).toBeVisible();
   const plan = (await request("/plans"))[0];
   await check("Preview has real paths and changes no bytes", async () => {
-    assert.equal(plan.operations.length, 64);
+    assert.equal(plan.operations.length, 65);
+    assert.equal(plan.operations.filter(op=>op.kind==='create_nfo').length,1);
     assert.equal(
       createHash("sha256")
         .update(await fs.readFile(originals[0].file))
@@ -254,13 +267,17 @@ try {
   await check("Real job survives browser reload", async () => {
     const completed = await terminal(job.id);
     assert.equal(completed.state, "completed");
-    assert.equal(completed.result.completed_operation_ids.length, 64);
+    assert.equal(completed.result.completed_operation_ids.length, 65);
     await expect(
-      page.getByText("64 completed · 0 failed · 0 pending"),
+      page.getByText("65 completed · 0 failed · 0 pending"),
     ).toBeVisible({ timeout: 15000 });
     for (const original of originals)
       assert.equal(existsSync(original.file), false);
     for (const op of plan.operations) {
+      if(op.kind==='create_nfo'){
+        assert.match(await fs.readFile(op.destination,'utf8'),/<title>Arrival<\/title>/);
+        continue;
+      }
       const original = originals.find((f) => f.file === op.source);
       assert.ok(original);
       assert.equal(
@@ -312,6 +329,9 @@ try {
     ["jobs", "Jobs"],
     ["sources", "Sources & destinations"],
     ["connections", "Connections"],
+    ["profiles", "Naming presets"],
+    ["comparison", "Compare versions"],
+    ["gaps", "Episode gaps"],
     ["activity", "Activity"],
     ["settings", "Settings"],
   ];

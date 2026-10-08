@@ -17,6 +17,7 @@ class BatchResult(Record):
     completed_operation_ids: list[str] = Field(default_factory=list)
     failed_operation_ids: list[str] = Field(default_factory=list)
     pending_operation_ids: list[str] = Field(default_factory=list)
+    created_sidecars_removed: list[str] = Field(default_factory=list)
 
 class RecoverySummary(Record):
     recovered_operation_ids: list[str] = Field(default_factory=list)
@@ -57,13 +58,17 @@ class Executor:
             if item_sig.get('type') == 'directory':
                 children = dict(item_sig['children'])
                 for done in completed:
-                    if done.item_id == op.item_id:
+                    if done.item_id == op.item_id and done.kind == 'move':
                         try:
                             relative = Path(done.source).relative_to(Path(details['item_path'])).as_posix()
                             children.pop(relative,None)
                         except ValueError:
                             pass
                 details['item_signature'] = {**item_sig,'children':children}
+            if op.kind.startswith('create_') and details.get('dependencies'):
+                dependencies = [done for done in completed if done.id in details['dependencies']]
+                if len(dependencies)==len(details['dependencies']):
+                    details['completed_dependencies'] = [done.model_dump() for done in dependencies]
             pending.append(op)
         checked = self.planner._validate(OperationPlan(id=plan.id,revision=plan.revision,operations=pending,issues=plan.issues))
         if checked.issues:
@@ -91,7 +96,13 @@ class Executor:
                     pending.extend(o.id for o in operations[index:] if o.state!='completed')
                     break
                 try:
-                    if op.state == 'finalised':
+                    if op.kind.startswith('create_'):
+                        if any(other.state!='completed' for other in operations if other.id in op.verification.get('dependencies',[])):
+                            raise ValueError('Media dependencies have not completed')
+                        self._create(op,context,index,len(operations))
+                    elif op.kind == 'remove_created':
+                        self._remove_created(op,context)
+                    elif op.state == 'finalised':
                         self._finish(op,context,index,len(operations))
                     else:
                         self._move(op,context,index,len(operations))
@@ -104,10 +115,10 @@ class Executor:
                 except Exception as exc:
                     code = 'destination_exists' if isinstance(exc,FileExistsError) else 'operation_failed'
                     self._journal(op,'error',error=code)
-                    self.library.status(op.item_id,'error')
+                    if op.kind == 'move':self.library.status(op.item_id,'error')
                     failed.append(op.id)
             state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'completed'
-            result = BatchResult(batch_id=batch_id,state=state,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending)
+            result = BatchResult(batch_id=batch_id,state=state,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
             with self.store.transaction() as conn:
                 conn.execute('UPDATE orion_batches SET state=?,data=? WHERE id=?',(state,result.model_dump_json(),batch_id))
                 conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('organisation',json.dumps({'batch_id':batch_id,'completed':len(completed),'failed':len(failed)}),state,utcnow()))
@@ -172,13 +183,63 @@ class Executor:
         self._finish(op,context,index,total)
         context.progress('Organising',index+1,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
 
+    def _create(self,op,context,index,total):
+        from orion.integrations.sidecars import Sidecars
+        import hashlib
+        destination = Path(op.destination)
+        self._safe_roots(op)
+        if op.state=='finalised':
+            if not self._destination_matches(op,context):raise ValueError('Generated output changed')
+            self._journal(op,'completed',error=None)
+            return
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        self._safe_roots(op)
+        temp = destination.parent/('.orion-'+op.id+'.part')
+        if temp.exists():
+            owned = op.verification.get('temp_signature')
+            if not owned or signature(temp)!=owned:raise ValueError('Temporary output ownership uncertain')
+            if op.verification.get('generated_complete') and self.fs.hash(temp,context)==op.verification.get('sha256'):
+                self.fs.rename_noreplace(temp,destination)
+                self._journal(op,'completed',final_signature=signature(destination),error=None)
+                return
+            temp.unlink()
+        self._journal(op,'intent',mode='create',error=None)
+        data = Sidecars.artwork(op.verification['artwork_url'],context) if op.kind=='create_artwork' else op.verification['content'].encode('utf-8')
+        if context.cancelled():raise Cancelled()
+        self._safe_roots(op)
+        with temp.open('xb') as output:
+            self._journal(op,'creating',temp_path=str(temp),temp_signature=signature(temp),generated_complete=False)
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+            digest = hashlib.sha256(data).hexdigest()
+            self._journal(op,'verified',temp_signature=signature(temp),sha256=digest,generated_complete=True,bytes_done=len(data))
+        self.fs.sync_directory(temp.parent)
+        if context.cancelled():raise Cancelled()
+        self._safe_roots(op)
+        if self.fs.hash(temp,context)!=digest:raise ValueError('Generated output changed before publication')
+        self.fs.rename_noreplace(temp,destination)
+        self._journal(op,'finalised',final_signature=signature(destination))
+        self._journal(op,'completed',error=None)
+        context.progress('Writing optional metadata',index+1,total,len(data),len(data))
+
+    def _remove_created(self,op,context):
+        self._safe_roots(op)
+        source = Path(op.source)
+        if signature(source)!=op.expected_signature or self.fs.hash(source,context)!=op.verification['sha256']:
+            raise ValueError('Generated output changed; retain it')
+        if context.cancelled():raise Cancelled()
+        self._journal(op,'intent',remove_intent=True,error=None)
+        self.fs.remove_source(source,op.expected_signature)
+        self._journal(op,'completed',error=None)
+
     def _destination_matches(self,op,context=None):
         destination = Path(op.destination)
         details = op.verification
         if not destination.is_file() or destination.is_symlink() or not details.get('sha256'):
             return False
         observed = signature(destination)
-        expected = details.get('final_signature') or (details.get('temp_signature') if details.get('mode')=='copy' else op.expected_signature)
+        expected = details.get('final_signature') or (details.get('temp_signature') if details.get('mode') in ('copy','create') else op.expected_signature)
         if not expected or any(observed.get(key) != expected.get(key) for key in ('device','inode','size','mtime_ns')):
             return False
         return self.fs.hash(destination,context) == details['sha256']
@@ -209,9 +270,12 @@ class Executor:
                 if op.state in ('pending','completed'): continue
                 try:
                     self._safe_roots(op)
-                    if self._destination_matches(op,context):
+                    if op.kind=='remove_created' and op.state in ('intent','error','cancelled') and op.verification.get('remove_intent') and not Path(op.source).exists():
+                        self._journal(op,'completed')
+                        report.recovered_operation_ids.append(op.id)
+                    elif self._destination_matches(op,context):
                         source = Path(op.source)
-                        state = 'finalised' if source.exists() else 'completed'
+                        state = 'completed' if op.kind.startswith('create_') else 'finalised' if source.exists() else 'completed'
                         self._journal(op,state,final_signature=signature(Path(op.destination)))
                         report.recovered_operation_ids.append(op.id)
                     elif Path(op.destination).exists():
@@ -224,6 +288,7 @@ class Executor:
     def _update_items_and_directories(self,operations):
         by_item = {}
         for op in operations:
+            if op.kind != 'move':continue
             by_item.setdefault(op.item_id,[]).append(op)
         for iid,group in by_item.items():
             if not all(op.state=='completed' for op in group): continue
@@ -239,7 +304,7 @@ class Executor:
                             Path(current).rmdir()
                         except OSError:
                             pass
-            target = Path(group[0].verification['restore_item_path']) if undo else Path(os.path.commonpath([str(p.parent) for p in destinations])) if directory else destinations[0]
+            target = Path(group[0].verification['restore_item_path']) if undo else Path(group[0].verification.get('destination_item_path') or (os.path.commonpath([str(p.parent) for p in destinations]) if directory else destinations[0]))
             item.path = str(target)
             if target.exists():
                 item.signature = signature(target)
@@ -257,6 +322,17 @@ class Executor:
             if op.state != 'completed': continue
             source,destination = Path(op.destination),Path(op.source)
             details = op.verification
+            if op.kind.startswith('create_'):
+                if not self._destination_matches(op):
+                    plan.warnings.append(PlanIssue(code='sidecar_changed',detail='Generated sidecar changed or disappeared; retain it: '+str(source),item_id=op.item_id))
+                    continue
+                inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,kind='remove_created',source=str(source),destination=str(source),expected_signature=details['final_signature'],verification={
+                    'source_root':details['destination_root'],'destination_root':details['destination_root'],'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['destination_root_resolved'],
+                    'item_path':str(source),'item_signature':details['final_signature'],'item_decision':self.library.get(op.item_id).decision.model_dump(),
+                    'sha256':details['sha256'],'undo_of':batch_id,'transfer_mode':'remove'})
+                plan.operations.insert(0,inverse)
+                continue
+            if op.kind!='move':continue
             if not self._destination_matches(op):
                 plan.issues.append(PlanIssue(code='target_changed',detail='Organised file changed; retain it',item_id=op.item_id))
                 continue

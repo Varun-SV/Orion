@@ -107,3 +107,21 @@ def test_failed_queued_scan_backs_off_without_marking_snapshot_processed(library
     assert watcher.tick(context).queued==0
     assert watcher.settings(sid)['next_attempt']>now[0]
     assert len(queue.calls)==1
+
+def test_stable_watch_identification_is_separately_opt_in(library,tmp_path,context):
+    from types import SimpleNamespace
+    root,sid,now,watcher=setup(library,tmp_path)
+    (root/'a.mkv').write_bytes(b'fixture')
+    class Queue:
+        def __init__(self):self.calls=[]
+        def submit(self,kind,payload):self.calls.append((kind,payload));return SimpleNamespace(id='job')
+    queue=Queue();watcher.jobs=queue
+    watcher.configure(sid,enabled=True,stability_seconds=10,identify_arrivals=True)
+    assert watcher.settings(sid)['identify_arrivals'] is True
+    snapshot=watcher.snapshot(root,context)
+    watcher.scan_ready({'source_id':sid,'snapshot':snapshot},context)
+    assert [kind for kind,_ in queue.calls]==['lookup']
+    assert library.query().items[0].decision is None
+    assert (root/'a.mkv').exists()
+    watcher.scan_ready({'source_id':sid,'snapshot':snapshot},context)
+    assert len(queue.calls)==1

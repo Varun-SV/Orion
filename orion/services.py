@@ -23,6 +23,8 @@ class Services:
     def lookup(self,payload,context):
         item = self.library.get(payload['item_id'])
         try:
+            if payload.get('signature') and (item.signature != payload['signature'] or item.decision):
+                return {'item_id':item.id,'skipped':True,'reason':'item_changed'}
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
             if self.library.get(item.id).signature != item.signature:
                 raise ProviderError('item_changed',payload.get('provider') or 'lookup')

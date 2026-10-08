@@ -150,6 +150,34 @@ export function Profiles() {
               {'{season:02d}'} and {'{episode:02d}'} for padded episode numbers.
             </p>
             <fieldset>
+              <legend>Optional metadata output</legend>
+              <p className="notice">
+                Off by default. Every write appears in the preview. Existing sidecars are preserved,
+                and undo retains externally edited output. Collection defaults apply when choosing
+                default naming.
+              </p>
+              {(
+                [
+                  ['nfo_enabled', 'Write NFO metadata'],
+                  ['artwork_enabled', 'Download artwork'],
+                  ['episode_nfo_enabled', 'Write episode NFO metadata'],
+                ] as const
+              ).map(([key, label]) => (
+                <label className="check-field" key={key}>
+                  <input
+                    type="checkbox"
+                    checked={!!draft[key]}
+                    onChange={(e) => setDraft({ ...draft, [key]: e.target.checked })}
+                  />
+                  {label}
+                </label>
+              ))}
+              <p className="notice">
+                Artwork contacts the confirmed provider. Episode metadata uses cached TMDb season
+                lookups when available. Missing optional metadata is shown as a warning.
+              </p>
+            </fieldset>
+            <fieldset>
               <legend>Quality tags in filename</legend>
               <div className="actions">
                 {qualityKeys.map((key) => (

@@ -64,6 +64,7 @@ class OperationPlan(Record):
     revision: int = 1
     operations: list[Operation] = Field(default_factory=list)
     issues: list[PlanIssue] = Field(default_factory=list)
+    warnings: list[PlanIssue] = Field(default_factory=list)
 
 class Job(Record):
     id: str

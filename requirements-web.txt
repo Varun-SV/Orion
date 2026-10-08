@@ -7,3 +7,4 @@ mutagen>=1.47,<2
 ebooklib>=0.18,<1
 pypdf>=4,<7
 keyring>=25,<26
+Pillow>=12.3,<13

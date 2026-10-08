@@ -23,6 +23,14 @@ export function PlanPreview({ plan }: { plan: Plan }) {
           ))}
         </div>
       )}
+      {!!plan.warnings?.length && (
+        <div className="notice">
+          <strong>Optional output notes</strong>
+          {plan.warnings.map((warning, i) => (
+            <p key={i}>{warning.detail}</p>
+          ))}
+        </div>
+      )}
       {plan.operations.length === 0 && <p className="notice">This preview has no file changes.</p>}
       {plan.operations.map((op) => (
         <article className="preview-item" key={op.id}>
@@ -33,7 +41,11 @@ export function PlanPreview({ plan }: { plan: Plan }) {
                 ? 'Cross-volume copy → verify → finalise → remove source'
                 : op.verification.transfer_mode === 'rename'
                   ? 'Same-volume rename → verify'
-                  : 'Transfer verified before source removal'}
+                  : op.kind.startsWith('create_')
+                    ? 'Create temporary output → verify → publish without overwrite'
+                    : op.kind === 'remove_created'
+                      ? 'Remove only unchanged output created by this batch'
+                      : 'Transfer verified before source removal'}
             </span>
           </div>
           <div className="path-preview">

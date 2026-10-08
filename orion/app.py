@@ -32,6 +32,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         runtime.jobs = JobManager(store,runtime.handlers())
         from orion.integrations.manager import ServerIntegration
         runtime.server = ServerIntegration(runtime)
+        planner.catalogue = runtime.server.catalogue
         from orion.watcher import Watcher
         runtime.watcher = Watcher(library,runtime.discovery,jobs=runtime.jobs)
         runtime.watcher.start()

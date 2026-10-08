@@ -28,7 +28,7 @@ class Watcher:
         with self.library.store.transaction() as conn:
             row = conn.execute('SELECT value FROM orion_settings WHERE key=?', ('watch_'+source_id,)).fetchone()
         data = json.loads(row[0]) if row else {}
-        return {'enabled':bool(source['watch']), 'stability_seconds':data.get('stability_seconds',30), 'next_attempt':data.get('next_attempt',0)}
+        return {'enabled':bool(source['watch']), 'identify_arrivals':bool(data.get('identify_arrivals',False)), 'stability_seconds':data.get('stability_seconds',30), 'next_attempt':data.get('next_attempt',0)}
 
     def _load(self, sid):
         with self.library.store.transaction() as conn:
@@ -39,7 +39,7 @@ class Watcher:
         with self.library.store.transaction() as conn:
             conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('watch_'+sid,json.dumps(data)))
 
-    def configure(self, source_id, *, enabled, stability_seconds=30):
+    def configure(self, source_id, *, enabled, stability_seconds=30, identify_arrivals=False):
         if not 5 <= stability_seconds <= 3600:
             raise ValueError('Stability interval must be between 5 and 3600 seconds')
         with self._lock:
@@ -50,7 +50,7 @@ class Watcher:
                     raise ValueError('Resume this source before enabling watching')
                 conn.execute('UPDATE orion_sources SET watch=? WHERE id=?',(int(enabled),source_id))
             data = self._load(source_id)
-            data.update(stability_seconds=stability_seconds,next_attempt=0)
+            data.update(stability_seconds=stability_seconds,identify_arrivals=identify_arrivals,next_attempt=0)
             self._save(source_id,data)
             self._wake.set()
         return self.settings(source_id)
@@ -80,7 +80,20 @@ class Watcher:
             return {'skipped':True}
         if self.snapshot(Path(source['path']),context) != payload['snapshot']:
             return {'skipped':True, 'reason':'source_changed'}
-        return self.discovery.scan([sid],False,context)
+        with self.library.store.transaction() as conn:
+            before = {row['id']:row['signature'] for row in conn.execute('SELECT id,signature FROM orion_items WHERE source_id=?',(sid,))}
+        result = self.discovery.scan([sid],False,context)
+        if self.settings(sid)['identify_arrivals'] and self.jobs and not result.cancelled and not result.unavailable_sources:
+            with self.library.store.transaction() as conn:
+                rows = conn.execute("SELECT id,signature FROM orion_items WHERE source_id=? AND decision IS NULL AND status='pending'",(sid,)).fetchall()
+            for row in rows:
+                if context.cancelled():raise Cancelled()
+                if before.get(row['id']) != row['signature']:
+                    try:
+                        self.jobs.submit('lookup',{'item_id':row['id'],'signature':json.loads(row['signature'])})
+                    except ValueError:
+                        self.library.annotate(row['id'],lookup_state='error',lookup_error='watch_lookup_queue_full')
+        return result
 
     def tick(self, context):
         report = WatchSummary()

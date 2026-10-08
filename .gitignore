@@ -166,7 +166,6 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -228,3 +227,4 @@ frontend/dist/
 site/dist/
 playwright-report/
 test-results/
+.superpowers/

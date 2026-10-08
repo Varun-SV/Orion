@@ -17,3 +17,15 @@ Automatic refresh is off by default. Enabling it queues an independent refresh j
 - [TMDb series](https://developer.themoviedb.org/reference/tv-series-details) and [season details](https://developer.themoviedb.org/reference/tv-season-details).
 
 Local HTTP fixtures cover both adapter types, 125-item pagination, metadata, user context, modern authorization, unavailable results, independent refresh retry and secret exclusion. No personal live server or authenticated TMDb catalogue has been supplied, so these checks do not establish live-server compatibility for a particular installation. Plex is not implemented.
+
+## Optional local metadata files
+
+Naming presets include **Write NFO metadata**, **Download artwork**, and **Write episode NFO metadata**. All three start off. Saved collection defaults apply when a preview uses default naming; choosing a preset binds its saved version to that preview.
+
+A preview lists generated outputs alongside media and associated subtitle/NFO/image moves. Movies use `movie.nfo` in their dedicated folder (a flat custom layout uses the media stem); series use `tvshow.nfo`, music uses `artist.nfo`/`album.nfo`, and books can receive a cover image. Episode NFO includes the show, season/episode, and cached episode title/plot/air date/episode ID when TMDb is available. A series ID is never written as an episode ID. XML text is escaped. Episode catalogue requests are cached per season; unavailable details appear as a warning and retain filename-derived numbers.
+
+Artwork comes only from supported credential-free HTTPS provider origins. Requests and decoding have byte, pixel, redirect and time limits; output is a real JPEG. An audio item without a release MBID or confirmed cover URL shows `release_id_unavailable`, rather than making up an album cover. The preview reserves up to 10 MiB for each artwork operation.
+
+Existing sidecars are kept. Generation uses an exclusively created temporary file, stored hashes/identities and exclusive final publication. Restart reconciles recorded output; retries validate the already moved media. Failed optional output leaves successful media moves indexed at their new paths and can be retried separately within the batch. Guarded undo removes only unchanged generated output, restores moved original companions, and leaves externally edited generated output with a warning.
+
+Watching has a separate **Identify stable arrivals** switch. By default it only scans. Enabling identification queues provider lookups for newly indexed or changed unconfirmed media after the whole source is stable; provider keys and fingerprint consent still apply. Download markers and later source changes prevent unstable scans. No watch operation confirms a match or organises files.

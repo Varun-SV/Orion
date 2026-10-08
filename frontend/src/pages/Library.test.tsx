@@ -178,3 +178,34 @@ test('movie review only asks for relevant naming fields', async () => {
   expect(screen.queryByRole('textbox', { name: 'Season' })).not.toBeInTheDocument();
   expect(screen.queryByRole('textbox', { name: 'Episode' })).not.toBeInTheDocument();
 });
+
+test('reconfirming retains provider identity and metadata needed for sidecars', async () => {
+  const item = makeItem('Track', 'music', 'approved');
+  item.decision = {
+    item_id: item.id,
+    provider: 'musicbrainz',
+    provider_id: 'recording',
+    metadata: {
+      title: 'Track',
+      plot: 'A & B',
+      release_mbid: 'album',
+      poster_url: 'https://covers.openlibrary.org/test.jpg',
+    },
+    evidence: ['Recording match'],
+  };
+  const requests = mockApi([item]);
+  location.hash = 'music';
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Review Track' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm match' }));
+  await waitFor(() =>
+    expect(
+      requests.find((r) => r.path.endsWith('/decision') && r.method === 'PUT')?.body,
+    ).toMatchObject({
+      provider: 'musicbrainz',
+      provider_id: 'recording',
+      metadata: { release_mbid: 'album', plot: 'A & B' },
+      evidence: ['Recording match'],
+    }),
+  );
+});

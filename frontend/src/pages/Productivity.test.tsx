@@ -114,7 +114,7 @@ test('source watching persists opt-in stability without submitting an organisati
   await userEvent.click(screen.getByRole('button', { name: 'Save watching for Incoming' }));
   await waitFor(() =>
     expect(requests.find((r) => r.path === '/sources/s/watch' && r.method === 'PUT')?.body).toEqual(
-      { enabled: true, stability_seconds: 45 },
+      { enabled: true, stability_seconds: 45, identify_arrivals: false },
     ),
   );
   expect(screen.getByText(/watching indexes stable arrivals/i)).toBeVisible();
@@ -176,4 +176,35 @@ test('preview requests bind the selected stored preset rather than rebuilding it
     }),
   );
   expect(requests.some((r) => r.path.endsWith('/execute'))).toBe(false);
+});
+
+test('preset output switches are off until explicitly saved', async () => {
+  const requests = mockApi([], {
+    '/profiles': [
+      { ...profile, nfo_enabled: false, artwork_enabled: false, episode_nfo_enabled: false },
+    ],
+    'PUT /profiles/default-movies': {
+      ...profile,
+      nfo_enabled: true,
+      artwork_enabled: false,
+      episode_nfo_enabled: false,
+    },
+  });
+  location.hash = 'profiles';
+  render(<App />);
+  await screen.findByRole('option', { name: 'Movies · v1' });
+  await userEvent.selectOptions(
+    screen.getByRole('combobox', { name: 'Naming preset' }),
+    profile.id,
+  );
+  expect(screen.getByRole('checkbox', { name: 'Write NFO metadata' })).not.toBeChecked();
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Write NFO metadata' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save preset' }));
+  await waitFor(() =>
+    expect(requests.find((r) => r.method === 'PUT')?.body).toMatchObject({
+      nfo_enabled: true,
+      artwork_enabled: false,
+      episode_nfo_enabled: false,
+    }),
+  );
 });

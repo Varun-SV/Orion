@@ -175,7 +175,7 @@ class Discovery:
                     item = MediaItem(id=iid,source_id=sid,path=path_text,kind=kind,signature=sig,
                                      metadata=parsed_metadata(path,kind),decision=old.decision if preserved else None,
                                      status=old.status if preserved and old.status != 'unavailable' else 'pending')
-                    self.library.upsert(item)
+                    self.library.discovered(item)
                     report.processed += 1
                     context.progress('Scanning',report.processed+report.unchanged,len(candidates))
                 except Cancelled:

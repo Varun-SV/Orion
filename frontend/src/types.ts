@@ -104,6 +104,7 @@ export interface Plan {
   revision: number;
   operations: Operation[];
   issues: Issue[];
+  warnings?: Issue[];
 }
 export interface Job {
   id: string;
@@ -160,6 +161,9 @@ export interface NamingProfile {
   music_template: string;
   book_template: string;
   quality_keys: string[];
+  nfo_enabled: boolean;
+  artwork_enabled: boolean;
+  episode_nfo_enabled: boolean;
 }
 export interface Comparison {
   exact: boolean;

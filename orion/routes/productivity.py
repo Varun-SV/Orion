@@ -13,6 +13,7 @@ Runtime=Annotated[Services,Depends(services)]
 
 class WatchUpdate(Record):
     enabled: bool
+    identify_arrivals: bool = False
     stability_seconds: int = Field(default=30,ge=5,le=3600)
 
 class CompareRequest(Record):

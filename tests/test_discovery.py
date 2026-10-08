@@ -156,3 +156,20 @@ def test_search_pagination_and_literal_wildcards(library,tmp_path,context):
     assert len(library.query(limit=1).items) == 1
     with pytest.raises(ValueError):
         library.query(offset=-1)
+
+def test_deep_scan_keeps_confirmation_made_during_metadata_read(library,tmp_path,context,monkeypatch):
+    from orion.discovery import Discovery
+    from orion.models import MatchDecision
+    import orion.discovery as discovery
+    root=tmp_path/'incoming';root.mkdir();(root/'a.mkv').write_bytes(b'fixture')
+    sid=library.add_source(root,kind='movies')['id'];Discovery(library).scan([sid],False,context)
+    item=library.query().items[0];original=discovery.parsed_metadata
+    def during_read(path,kind):
+        library.decide(item.id,MatchDecision(item_id=item.id,provider='tmdb',provider_id='123',metadata={'title':'User choice'}))
+        library.annotate(item.id,lookup_state='ready',candidates=[{'title':'User choice'}])
+        return original(path,kind)
+    monkeypatch.setattr(discovery,'parsed_metadata',during_read)
+    Discovery(library).scan([sid],True,context)
+    fresh=library.get(item.id)
+    assert fresh.decision.provider_id=='123' and fresh.status=='approved'
+    assert fresh.metadata['lookup_state']=='ready'

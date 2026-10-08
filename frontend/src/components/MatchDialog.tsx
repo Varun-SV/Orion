@@ -78,10 +78,10 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
         '/items/' + item.id + '/decision',
         json('PUT', {
           item_id: item.id,
-          provider: choice?.provider ?? 'manual',
-          provider_id: choice?.provider_id ?? '',
+          provider: choice?.provider ?? item.decision?.provider ?? 'manual',
+          provider_id: choice?.provider_id ?? item.decision?.provider_id ?? '',
           metadata,
-          evidence: choice?.evidence ?? ['Title confirmed manually'],
+          evidence: choice?.evidence ?? item.decision?.evidence ?? ['Title confirmed manually'],
         }),
       );
       refresh();
@@ -161,7 +161,9 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
         ))}
         <label className="candidate">
           <input type="radio" name="candidate" checked={!choice} onChange={() => setChoice(null)} />
-          Manual correction
+          {item.decision?.provider_id
+            ? `Keep confirmed ${item.decision.provider} identity (${item.decision.provider_id}) and correct fields`
+            : 'Manual correction'}
         </label>
       </div>
       <div className="form-grid">

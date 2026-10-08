@@ -72,6 +72,24 @@ class Library:
                          (item.id,item.source_id,item.path,item.kind,item.status,json.dumps(item.signature),json.dumps(safe_metadata(item.metadata)),item.decision.model_dump_json() if item.decision else None,utcnow()))
         return item
 
+    def discovered(self,item):
+        """Merge an observed signature without replacing a concurrent confirmation."""
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
+            if row:
+                latest=self.from_row(row)
+                if latest.path != item.path:
+                    return latest  # A completed organisation already moved this item.
+                if latest.signature == item.signature or not latest.signature:
+                    item=item.model_copy(update={'decision':latest.decision,
+                        'status':('approved' if latest.decision else 'pending') if latest.status=='unavailable' else latest.status,
+                        'metadata':{**latest.metadata,**item.metadata}})
+                else:
+                    item=item.model_copy(update={'decision':None,'status':'pending'})
+            conn.execute('INSERT INTO orion_items VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET path=excluded.path,kind=excluded.kind,status=excluded.status,signature=excluded.signature,metadata=excluded.metadata,decision=excluded.decision,updated_at=excluded.updated_at',
+                (item.id,item.source_id,item.path,item.kind,item.status,json.dumps(item.signature),json.dumps(safe_metadata(item.metadata)),item.decision.model_dump_json() if item.decision else None,utcnow()))
+        return item
+
     def decide(self, item_id: str, decision: MatchDecision) -> MediaItem:
         if decision.item_id != item_id or not str(decision.metadata.get('title','')).strip():
             raise ValueError('Decision must identify this item and supply a title')

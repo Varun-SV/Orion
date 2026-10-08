@@ -16,6 +16,9 @@ class NamingProfile(Record):
     episode_template: str = '{title}/Season {season:02d}/{title} - S{season:02d}E{episode:02d}{episode_title_suffix}{quality}{ext}'
     music_template: str = '{artist}/{album}{year_suffix}/{track_prefix}{title}{ext}'
     book_template: str = '{author}/{series_path}{title}{ext}'
+    nfo_enabled: bool = False
+    artwork_enabled: bool = False
+    episode_nfo_enabled: bool = False
     quality_keys: list[str] = Field(default_factory=lambda:['screen_size'])
 
 class RelativeLayout(Record):
