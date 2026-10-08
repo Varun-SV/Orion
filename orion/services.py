@@ -42,6 +42,13 @@ class Services:
                 'provider_test':self.test_provider}
 
     def test_provider(self,payload,context):
+        try:
+            return self._test_provider(payload,context)
+        except ProviderError as exc:
+            self.config.set_pref('provider_health_'+payload['provider'],{'health':'unavailable','detail':exc.code})
+            raise
+
+    def _test_provider(self,payload,context):
         provider = payload['provider']
         if provider in ('audd','acoustid'):
             result = {'health':'requires_sample','detail':'Test by identifying a selected music item after enabling consent.'}

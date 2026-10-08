@@ -196,3 +196,40 @@ def test_plan_records_actual_volume_transfer_implications(client,tmp_path):
     assert not plan.issues
     assert plan.operations[0].verification['transfer_mode']=='rename'
     assert runtime.planner.get(plan.id).operations[0].verification['transfer_mode']=='rename'
+
+def test_paused_source_can_resume_without_losing_index_or_touching_files(client,tmp_path):
+    root=tmp_path/'resume-source';root.mkdir()
+    file=root/'fixture.mkv';file.write_bytes(b'keep me')
+    source=client.post('/api/v1/sources',json={'path':str(root),'kind':'movies'}).json()
+    client.delete('/api/v1/sources/'+source['id'])
+    result=client.post('/api/v1/sources/'+source['id']+'/resume')
+    assert result.status_code==200
+    assert not client.get('/api/v1/sources').json()[0]['archived']
+    assert client.get('/api/v1/overview').json()['sources']==1
+    assert file.read_bytes()==b'keep me'
+
+def test_replacing_credentials_clears_previous_health_check(client):
+    client.app.state.services.config.set_pref('provider_health_tmdb',{'health':'connected','detail':'Old check'})
+    result=client.post('/api/v1/providers/tmdb/credentials',json={'key':'replacement','session_only':True})
+    assert result.status_code==200
+    provider=next(p for p in client.get('/api/v1/providers').json() if p['id']=='tmdb')
+    assert provider['configured'] and provider['health']=='not_checked'
+
+def test_category_provider_setting_is_used_by_lookup_preferences(client):
+    category=next(c for c in client.get('/api/v1/categories').json() if c['kind']=='anime')
+    result=client.put('/api/v1/categories/'+category['id'],json={'dest_subpath':'Anime','api_pref':'anidb'})
+    assert result.status_code==200
+    assert client.get('/api/v1/settings').json()['providers']['anime']=='anidb'
+
+def test_failed_provider_recheck_cannot_keep_old_connected_badge(client,monkeypatch):
+    from orion.providers import ProviderError
+    runtime=client.app.state.services
+    runtime.config.set_api_key('tmdb','fixture-key',session_only=True)
+    runtime.config.set_pref('provider_health_tmdb',{'health':'connected','detail':'Old check'})
+    def unavailable(*args,**kwargs):raise ProviderError('provider_unavailable','tmdb')
+    monkeypatch.setattr(runtime.providers,'_call',unavailable)
+    job=client.post('/api/v1/providers/tmdb/test').json()
+    assert wait_job(client,job['id'])['state']=='failed'
+    provider=next(p for p in client.get('/api/v1/providers').json() if p['id']=='tmdb')
+    assert provider['health']=='unavailable'
+    assert provider['detail']=='provider_unavailable'

@@ -62,6 +62,15 @@ def archive_source(source_id:str,runtime:Runtime):
         conn.execute('UPDATE orion_sources SET watch=0 WHERE id=?',(source_id,))
     return {'id':source_id,'archived':True,'detail':'Scan source paused; indexed items and recovery history are preserved.'}
 
+@router.post('/sources/{source_id}/resume')
+def resume_source(source_id:str,runtime:Runtime):
+    source = next((s for s in runtime.library.sources() if s['id']==source_id),None)
+    if not source: raise KeyError('Source not found')
+    root = Path(source['path'])
+    if not root.is_dir() or linked(root): raise ValueError('Reconnect the source folder before resuming')
+    with runtime.store.transaction() as conn:
+        conn.execute('DELETE FROM orion_settings WHERE key=?',('source_archived_'+source_id,))
+    return {'id':source_id,'archived':False}
 @router.get('/destinations')
 def destinations(runtime:Runtime):
     with runtime.store.transaction() as conn:
@@ -97,8 +106,10 @@ def categories(runtime:Runtime):
 def update_category(category_id:str,body:CategoryUpdate,runtime:Runtime):
     valid_relative(body.dest_subpath)
     with runtime.store.transaction() as conn:
+        category = conn.execute('SELECT kind FROM orion_categories WHERE id=?',(category_id,)).fetchone()
         changed = conn.execute('UPDATE orion_categories SET dest_subpath=?,api_pref=? WHERE id=?',(body.dest_subpath,body.api_pref,category_id)).rowcount
     if not changed: raise KeyError('Category not found')
+    runtime.config.set_pref('provider_'+category['kind'],body.api_pref)
     return {'id':category_id,**body.model_dump()}
 
 @router.get('/settings')
@@ -135,7 +146,9 @@ def providers(runtime:Runtime):
 @router.post('/providers/{provider}/credentials')
 def credentials(provider:ProviderName,body:CredentialUpdate,runtime:Runtime):
     if provider not in ('tmdb','acoustid','audd'): raise ValueError('Provider does not use an API key')
-    return runtime.config.set_api_key(provider,body.key.get_secret_value(),body.session_only)
+    result = runtime.config.set_api_key(provider,body.key.get_secret_value(),body.session_only)
+    runtime.config.set_pref('provider_health_'+provider,{'health':'not_checked'})
+    return result
 
 @router.post('/providers/{provider}/test',status_code=202)
 def test_provider(provider:ProviderName,runtime:Runtime):
