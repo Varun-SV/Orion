@@ -2,12 +2,15 @@ from __future__ import annotations
 import re
 import string
 from pathlib import Path,PurePosixPath
+from typing import Literal
 from pydantic import Field
-from orion.models import Record,MediaItem
+from orion.models import Record,MediaItem,Kind
 
 class NamingProfile(Record):
-    id: str = 'default'
-    kind: str = 'auto'
+    id: str = Field(default='default',min_length=1,max_length=100,pattern=r'^[A-Za-z0-9_-]+$')
+    label: str = Field(default='Default',min_length=1,max_length=100)
+    version: int = Field(default=1,ge=1)
+    kind: Literal['auto'] | Kind = 'auto'
     movie_template: str = '{title}{year_suffix}/{title}{year_suffix}{quality}{ext}'
     folder_template: str = '{title}{year_suffix}'
     episode_template: str = '{title}/Season {season:02d}/{title} - S{season:02d}E{episode:02d}{episode_title_suffix}{quality}{ext}'

@@ -4,6 +4,7 @@ import { useResource } from '../api/useResource';
 import { useWorkspace } from '../state/WorkspaceProvider';
 import { navigate } from '../state/navigation';
 import { collections, type Source, type Destination, type Job } from '../types';
+import { WatchControls } from '../components/WatchControls';
 export function Setup() {
   const { refresh, overview } = useWorkspace();
   const { data: sources, error: sourceError } = useResource<Source[]>('/sources'),
@@ -84,6 +85,10 @@ export function Setup() {
         and books can be renamed in place without a separate destination. Paths and overlap checks
         are validated by the engine.
       </p>
+      <p className="notice">
+        Watching indexes stable arrivals for review. It never confirms matches or organises files
+        automatically.
+      </p>
       <div className="settings-grid">
         <section className="panel">
           <h2>Source folders</h2>
@@ -105,6 +110,7 @@ export function Setup() {
                 <strong>{source.label}</strong>
               </label>
               <p className="path-text">{source.path}</p>
+              <WatchControls source={source} />
               <p className="subtitle">
                 {source.kind === 'auto' ? 'Auto-detect collections' : collections[source.kind]} ·{' '}
                 {source.archived ? 'Paused' : 'Configured'}

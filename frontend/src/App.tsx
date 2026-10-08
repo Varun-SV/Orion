@@ -23,6 +23,8 @@ import {
 import { WorkspaceProvider, useWorkspace } from './state/WorkspaceProvider';
 import { collections, type Kind } from './types';
 import { Overview } from './pages/Overview';
+import { Profiles } from './pages/Profiles';
+import { ComparisonPage } from './pages/Comparison';
 import { Library } from './pages/Library';
 import { Review } from './pages/Review';
 import { Plans } from './pages/Plans';
@@ -51,6 +53,8 @@ export const navigation: [string, string, Icon][] = [
   ['jobs', 'Jobs', List],
   ['sources', 'Sources & destinations', HardDrive],
   ['connections', 'Connections', LinkIcon],
+  ['profiles', 'Naming presets', Sliders],
+  ['comparison', 'Compare versions', Layers],
   ['activity', 'Activity', Activity],
   ['settings', 'Settings', Sliders],
 ];
@@ -205,6 +209,8 @@ function Shell() {
               {route === 'sources' && <Setup />}
               {route === 'connections' && <Connections />}
               {route === 'settings' && <Settings />}
+              {route === 'profiles' && <Profiles />}
+              {route === 'comparison' && <ComparisonPage />}
               {route === 'plans' && <Plans />}
               {route === 'jobs' && <Jobs />}
               {route === 'activity' && <ActivityPage />}

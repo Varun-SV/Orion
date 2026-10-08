@@ -30,6 +30,9 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         planner = Planner(library)
         runtime = Services(cfg,store,library,Discovery(library),Providers(cfg),planner,Executor(library,planner))
         runtime.jobs = JobManager(store,runtime.handlers())
+        from orion.watcher import Watcher
+        runtime.watcher = Watcher(library,runtime.discovery,jobs=runtime.jobs)
+        runtime.watcher.start()
         app.state.services = runtime
         app.state.backup_path = str(backup) if backup else None
         with store.transaction() as conn:
@@ -39,6 +42,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         try:
             yield
         finally:
+            runtime.watcher.stop()
             runtime.jobs.shutdown()
 
     app = FastAPI(title='Orion local API',version=__version__,lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
@@ -96,8 +100,8 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
             app.state.stop_callback()
         return {'stopping':True}
 
-    from orion.routes import library,settings,jobs,plans
-    for module in (library,settings,jobs,plans):
+    from orion.routes import library,settings,jobs,plans,productivity
+    for module in (library,settings,jobs,plans,productivity):
         app.include_router(module.router)
 
     @app.get('/{path:path}')

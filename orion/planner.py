@@ -13,6 +13,7 @@ from orion.store import normalized,utcnow
 
 class PlanOptions(Record):
     destination_id: str | None = None
+    profile_id: str | None = None
     in_place: bool = False
     conflict: Literal['block','skip','keep_both'] = 'block'
     profile: NamingProfile = Field(default_factory=NamingProfile)
@@ -59,6 +60,9 @@ class Planner:
     def create(self,item_ids:list[str],options:PlanOptions) -> OperationPlan:
         if not item_ids or len(item_ids)>500:
             raise ValueError('Select between 1 and 500 items')
+        if options.profile_id:
+            from orion.profiles import Profiles
+            options = options.model_copy(update={'profile':Profiles(self.library).get(options.profile_id)})
         plan = OperationPlan(id=str(uuid4()))
         sources = {r['id']:r for r in self.library.sources()}
         with self.store.transaction() as conn:
@@ -122,7 +126,7 @@ class Planner:
                                       verification={'source_root':str(source_root),'destination_root':str(destination_root),
                                                     'source_root_resolved':str(source_root.resolve()),'destination_root_resolved':str(destination_root.resolve()),
                                                     'item_signature':current,'item_decision':item.decision.model_dump(),'item_path':item.path,'source_directory':item.path if current['type']=='directory' else '',
-                                                    'profile_id':options.profile.id})
+                                                    'profile_id':options.profile.id,'profile_version':options.profile.version,'profile_snapshot':options.profile.model_dump()})
                 if normalized(dst) in reserved:
                     issue('duplicate_destination','Two operations target the same path',iid,operation.id)
                 reserved.add(normalized(dst))

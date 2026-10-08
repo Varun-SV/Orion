@@ -3,12 +3,14 @@ import { api, json } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useWorkspace } from '../state/WorkspaceProvider';
 import { navigate } from '../state/navigation';
-import { type Plan, type Destination, type Job } from '../types';
+import { type Plan, type Destination, type Job, type NamingProfile } from '../types';
 import { PlanPreview } from '../components/PlanPreview';
 export function Plans() {
   const { selected, setSelected, currentPlan, setCurrentPlan, settings, refresh } = useWorkspace();
   const { data: plans, error: listError } = useResource<Plan[]>('/plans'),
     { data: destinations } = useResource<Destination[]>('/destinations');
+  const { data: profiles } = useResource<NamingProfile[]>('/profiles');
+  const [profileId, setProfileId] = useState('');
   const [destination, setDestination] = useState(settings?.default_destination ?? ''),
     [inPlace, setInPlace] = useState(false),
     [conflict, setConflict] = useState('block'),
@@ -43,7 +45,12 @@ export function Plans() {
           '/plans',
           json('POST', {
             item_ids: selected,
-            options: { destination_id: inPlace ? null : destination, in_place: inPlace, conflict },
+            options: {
+              destination_id: inPlace ? null : destination,
+              in_place: inPlace,
+              conflict,
+              profile_id: profileId || null,
+            },
           }),
         ),
       );
@@ -88,6 +95,17 @@ export function Plans() {
         <section className="panel">
           <h2>Create a preview</h2>
           <p className="subtitle">{selected.length} confirmed items selected</p>
+          <label className="field">
+            Naming preset
+            <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+              <option value="">Default naming</option>
+              {profiles?.map((p) => (
+                <option value={p.id} key={p.id}>
+                  {p.label} · v{p.version}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="form-grid">
             <label className="field">
               Destination

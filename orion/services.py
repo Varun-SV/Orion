@@ -17,6 +17,7 @@ class Services:
     planner: Planner
     executor: Executor
     jobs: object = None
+    watcher: object = None
 
     def lookup(self,payload,context):
         item = self.library.get(payload['item_id'])
@@ -39,7 +40,13 @@ class Services:
                 'lookup':self.lookup,
                 'organise':lambda p,c:self.executor.execute(p['plan_id'],p['revision'],c),
                 'undo':lambda p,c:self.executor.execute(p['plan_id'],p['revision'],c),
-                'provider_test':self.test_provider}
+                'provider_test':self.test_provider,
+                'comparison':self.compare,
+                'watch_scan':lambda p,c:self.watcher.scan_ready(p,c)}
+
+    def compare(self,payload,context):
+        from orion.duplicates import Duplicates
+        return Duplicates(self.library).compare(payload['item_ids'],payload.get('exact',False),context)
 
     def test_provider(self,payload,context):
         try:

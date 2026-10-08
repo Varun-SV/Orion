@@ -149,3 +149,33 @@ export const bytes = (value: number) =>
         ? `${(value / 1024).toFixed(1)} KB`
         : `${value} B`;
 export const active = (job: Job) => ['queued', 'running', 'cancelling'].includes(job.state);
+export interface NamingProfile {
+  id: string;
+  label: string;
+  version: number;
+  kind: Kind | 'auto';
+  movie_template: string;
+  folder_template: string;
+  episode_template: string;
+  music_template: string;
+  book_template: string;
+  quality_keys: string[];
+}
+export interface Comparison {
+  exact: boolean;
+  items: {
+    item_id: string;
+    path: string;
+    kind: string;
+    title: string;
+    bytes: number;
+    provider: string;
+    provider_id: string;
+    quality: Metadata;
+    edition: string;
+    sha256: string | null;
+  }[];
+  exact_groups: string[][];
+  version_groups: { item_ids: string[]; evidence: string[] }[];
+  errors: { item_id: string; code: string }[];
+}

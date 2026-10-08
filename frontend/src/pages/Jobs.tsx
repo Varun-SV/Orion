@@ -115,6 +115,12 @@ export function Jobs() {
               </p>
             )}
             <div className="actions">
+              <a className="secondary" href={'/api/v1/jobs/' + job.id + '/report?format=csv'}>
+                Export CSV
+              </a>
+              <a className="secondary" href={'/api/v1/jobs/' + job.id + '/report?format=json'}>
+                Export JSON
+              </a>
               {active(job) && (
                 <button
                   className="secondary"
