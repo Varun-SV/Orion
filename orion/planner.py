@@ -228,6 +228,7 @@ class Planner:
                 continue
             try:
                 device = ancestor.stat().st_dev
+                details['transfer_mode'] = 'copy' if src.exists() and src.stat().st_dev != device else 'rename'
                 if src.exists() and src.stat().st_dev != device:
                     prior = required_space.get(device,(ancestor,0))
                     required_space[device] = (ancestor,prior[1]+int(op.expected_signature.get('size',0)))

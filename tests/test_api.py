@@ -180,3 +180,19 @@ def test_review_filter_paginates_all_review_states_including_failed_decisions(cl
     assert response['total']==3
     assert [i['status'] for i in response['items']]==['error','no_match']
     assert response['items'][0]['decision']['metadata']['title']=='Confirmed'
+
+def test_plan_records_actual_volume_transfer_implications(client,tmp_path):
+    from orion.discovery import signature
+    from orion.models import MediaItem,MatchDecision
+    from orion.planner import PlanOptions
+    source=tmp_path/'volume-source';destination=tmp_path/'volume-destination'
+    source.mkdir();destination.mkdir()
+    file=source/'a.mkv';file.write_bytes(b'volume fixture')
+    runtime=client.app.state.services
+    configured=runtime.library.add_source(source,kind='movies')
+    did=client.post('/api/v1/destinations',json={'path':str(destination)}).json()['id']
+    runtime.library.upsert(MediaItem(id='volume',source_id=configured['id'],path=str(file),kind='movies',status='approved',signature=signature(file),decision=MatchDecision(item_id='volume',metadata={'title':'Arrival'})))
+    plan=runtime.planner.create(['volume'],PlanOptions(destination_id=did))
+    assert not plan.issues
+    assert plan.operations[0].verification['transfer_mode']=='rename'
+    assert runtime.planner.get(plan.id).operations[0].verification['transfer_mode']=='rename'

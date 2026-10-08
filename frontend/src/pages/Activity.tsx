@@ -1,0 +1,5 @@
+import {Activity as ActivityIcon} from 'react-feather';
+import {useResource} from '../api/useResource';
+import {type ActivityRecord} from '../types';
+function detail(value:string){try{const d=JSON.parse(value);if(d.batch_id)return `${d.completed??0} completed · ${d.failed??0} failed · batch ${String(d.batch_id).slice(0,8)}`;return value;}catch{return value;}}
+export function Activity(){const {data,error,loading}=useResource<ActivityRecord[]>('/activity');return <section className="panel">{error&&<p role="alert">{error}</p>}{loading&&<p role="status">Loading activity…</p>}{!loading&&!data?.length&&<div className="empty"><h2>Your story starts here.</h2><p>Recorded organisation and integration outcomes will appear here.</p></div>}{data?.map(entry=><article className="activity-row" key={entry.id}><ActivityIcon/><div className="row-content"><strong>{entry.action} · {entry.status}</strong><p className="subtitle path-text">{detail(entry.detail)}</p></div><time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time></article>)}</section>;}

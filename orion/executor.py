@@ -92,7 +92,7 @@ class Executor:
                     break
                 try:
                     if op.state == 'finalised':
-                        self._finish(op,context)
+                        self._finish(op,context,index,len(operations))
                     else:
                         self._move(op,context,index,len(operations))
                     completed.append(op.id)
@@ -150,7 +150,7 @@ class Executor:
                     self._safe_roots(op)
                     self.fs.rename_noreplace(temp,destination)
                     self._journal(op,'finalised',final_signature=signature(destination))
-                    self._finish(op,context)
+                    self._finish(op,context,index,total)
                     context.progress('Organising',index+1,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
                     return
                 temp.unlink()
@@ -160,14 +160,16 @@ class Executor:
                 if copied:
                     context.progress('Copying',index,total,copied,int(op.expected_signature['size']))
             copied,copied_hash = self.fs.copy(source,temp,context,checkpoint)
+            context.progress('Verifying copy',index,total,copied,int(op.expected_signature['size']))
             if context.cancelled(): raise Cancelled()
             if signature(source) != op.expected_signature or copied != op.expected_signature['size'] or copied_hash != digest or self.fs.hash(temp,context) != digest:
                 raise ValueError('Copy verification failed; preserve the source')
             self._journal(op,'verified',temp_signature=signature(temp))
+            context.progress('Finalising',index,total,copied,int(op.expected_signature['size']))
             self._safe_roots(op)
             self.fs.rename_noreplace(temp,destination)
             self._journal(op,'finalised',final_signature=signature(destination))
-        self._finish(op,context)
+        self._finish(op,context,index,total)
         context.progress('Organising',index+1,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
 
     def _destination_matches(self,op,context=None):
@@ -181,7 +183,8 @@ class Executor:
             return False
         return self.fs.hash(destination,context) == details['sha256']
 
-    def _finish(self,op,context):
+    def _finish(self,op,context,index=0,total=1):
+        context.progress('Verifying destination',index,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
         self._safe_roots(op)
         if not self._destination_matches(op,context):
             raise ValueError('Published destination changed; preserve any source')
@@ -190,6 +193,8 @@ class Executor:
             if context.cancelled(): raise Cancelled()
             if signature(source) != op.expected_signature or self.fs.hash(source,context) != op.verification['sha256']:
                 raise ValueError('Source changed; do not delete it')
+            context.progress('Removing source',index,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
+            if context.cancelled(): raise Cancelled()
             self.fs.remove_source(source,op.expected_signature)
         self._journal(op,'completed',final_signature=signature(Path(op.destination)),error=None)
 

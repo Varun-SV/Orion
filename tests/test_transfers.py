@@ -85,3 +85,19 @@ def test_modified_finalised_destination_never_deletes_source(library,tmp_path,co
     assert Executor(library,planner,filesystem=Modified()).execute(plan.id,1,context).state == 'failed'
     assert source.read_bytes() == b'original media bytes'
     assert target.read_bytes() == b'edited after publication'
+
+def test_cross_volume_progress_exposes_real_verification_and_publication_stages(library,tmp_path,context):
+    planner,plan,source,target=make_plan(library,tmp_path,context)
+    class Cross(Filesystem):
+        def same_volume(self,*a):return False
+    class Recorded:
+        records=[]
+        def cancelled(self):return False
+        def progress(self,phase,*args):self.records.append((phase,source.exists(),target.exists()))
+    observed=Recorded()
+    result=Executor(library,planner,filesystem=Cross()).execute(plan.id,1,observed)
+    assert result.state=='completed'
+    phases=[record[0] for record in observed.records]
+    assert phases.index('Copying') < phases.index('Verifying copy') < phases.index('Finalising') < phases.index('Verifying destination') < phases.index('Removing source')
+    assert next(record for record in observed.records if record[0]=='Verifying copy')[1:]==(True,False)
+    assert next(record for record in observed.records if record[0]=='Removing source')[1:]==(True,True)
