@@ -26,3 +26,21 @@ def legacy(tmp_path):
     db.upsert_destination('D:', str(tmp_path / 'library'))
     db.close()
     return path
+
+class QuietContext:
+    def cancelled(self):
+        return False
+    def progress(self, *args, **kwargs):
+        pass
+
+@pytest.fixture
+def context():
+    return QuietContext()
+
+@pytest.fixture
+def library(tmp_path):
+    from orion.store import Store
+    from orion.library import Library
+    store = Store(tmp_path / 'test.db')
+    store.migrate()
+    return Library(store)
