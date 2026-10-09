@@ -168,6 +168,10 @@ class Discovery:
                     candidates[str(item_path)] = kind
             if report.cancelled:
                 break
+            # Directory-backed video items own every member, including audio
+            # and books. Publish only the outer candidate for each subtree.
+            candidates = {path:kind for path,kind in candidates.items()
+                if not any(str(parent) in candidates for parent in Path(path).parents)}
             for path_text, kind in sorted(candidates.items()):
                 if context.cancelled():
                     report.cancelled = True
@@ -207,6 +211,6 @@ class Discovery:
                 with self.library.store.transaction() as conn:
                     rows = conn.execute('SELECT id,path FROM orion_items WHERE source_id=?',(sid,)).fetchall()
                     for row in rows:
-                        if row['id'] not in seen and Path(row['path']).absolute().is_relative_to(root.absolute()):
+                        if row['id'] not in seen and Path(row['path']).absolute().is_relative_to(root.absolute()) and not self.library._has_unfinished_operations(conn,row['id']):
                             conn.execute("UPDATE orion_items SET status='unavailable' WHERE id=?",(row['id'],))
         return report

@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse,FileResponse,HTMLResponse
 from orion import __version__
 from orion.config import Config
+from orion.launcher import workspace_id
 from orion.store import Store
 from orion.library import Library
 from orion.discovery import Discovery
@@ -95,7 +96,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
     @app.get('/api/v1/session')
     def session(request:Request,response:Response):
         response.set_cookie('orion_session_'+str(request.url.port or 80),cookie,httponly=True,samesite='strict',max_age=86400)
-        return {'csrf_token':csrf}
+        return {'csrf_token':csrf,'workspace_id':workspace_id(request.app.state.services.config.app_data_dir)}
 
     @app.get('/api/v1/health')
     def health():

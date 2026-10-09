@@ -102,6 +102,7 @@ class EpisodeGaps:
             catalogue=self.catalogue.episodes(provider_mapping.provider_id,include_specials,context)
             present=set()
             for episode in actual:
+                if episode.season==0 and not include_specials:continue
                 end=episode.episode_end or episode.episode
                 if end<episode.episode or end-episode.episode>100:raise ProviderError('episode_number_unavailable','media_server')
                 present.update((episode.season,e) for e in range(episode.episode,end+1))

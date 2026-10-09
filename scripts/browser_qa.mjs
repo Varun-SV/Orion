@@ -346,12 +346,25 @@ try {
     await fs.unlink(unrecordedFile);
     await navigate("jobs","Jobs");
     const jobCard=page.locator("article.job-card").filter({has:page.getByText(undoJob.id,{exact:true})});
+    await expect(jobCard.getByRole("button",{name:"Preview undo",exact:true})).toHaveCount(0);
+    // Exercise real request latency: the previous terminal state remains visible
+    // until the retry POST is accepted by the backend.
+    await page.route(url+"/api/v1/jobs/"+undoJob.id+"/retry",async route=>{
+      await sleep(250);
+      await route.continue();
+    },{times:1});
+    const retryAccepted=page.waitForResponse(response=>
+      response.url()===url+"/api/v1/jobs/"+undoJob.id+"/retry" && response.request().method()==="POST");
     await jobCard.getByRole("button",{name:"Retry job",exact:true}).click();
+    const retryResponse=await retryAccepted;
+    assert.equal(retryResponse.status(),200,await retryResponse.text());
+    assert.equal((await retryResponse.json()).id,undoJob.id);
   });
   await check(
     "Guarded undo restores every generated fixture byte",
     async () => {
-      assert.equal((await terminal(undoJob.id)).state, "completed");
+      const restored=await terminal(undoJob.id);
+      assert.equal(restored.state, "completed", JSON.stringify(restored));
       for (const original of originals)
         assert.equal(
           createHash("sha256")

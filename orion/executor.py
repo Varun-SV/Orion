@@ -394,9 +394,19 @@ class Executor:
         recovery_items = []
         by_item = {}
         for op in operations:
-            if op.kind != 'move':continue
             by_item.setdefault(op.item_id,[]).append(op)
-        for iid,group in by_item.items():
+        for iid,members in by_item.items():
+            group = [op for op in members if op.kind=='move']
+            if not group:
+                if all(op.state=='completed' for op in members):
+                    item = self.library.get(iid)
+                    if all(op.kind.startswith('create_') for op in members):
+                        item.status='organised'
+                        self.library.upsert(item)
+                    elif all(op.kind=='remove_created' and op.verification.get('restore_sidecar_only') for op in members):
+                        item.status='approved' if item.decision else 'pending'
+                        self.library.upsert(item)
+                continue
             if not all(op.state=='completed' for op in group): continue
             item = self.library.get(iid)
             organised_path = item.path
@@ -484,6 +494,8 @@ class Executor:
         if not row:
             raise KeyError('Batch not found')
         originals = self.operations(row['plan_id'])
+        if self.planner.get(row['plan_id']).undo_batch_id or any(op.verification.get('undo_of') for op in originals):
+            raise ValueError('An undo batch cannot be undone again')
         excluded=list(dict.fromkeys(exclude_operation_ids or []))
         eligible={op.id for op in originals if op.state=='completed' and op.kind in ('move','create_nfo','create_artwork')}
         if not set(excluded).issubset(eligible):raise ValueError('Excluded operation is not a completed member of this batch')
@@ -507,7 +519,8 @@ class Executor:
                 inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,kind='remove_created',source=str(source),destination=str(source),expected_signature=details['final_signature'],verification={
                     'source_root':details['destination_root'],'destination_root':details['destination_root'],'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['destination_root_resolved'],
                     'item_path':str(source),'item_signature':details['final_signature'],'item_decision':item.decision.model_dump() if item.decision else None,
-                    'sha256':details['sha256'],'undo_of':batch_id,'transfer_mode':'remove'})
+                    'sha256':details['sha256'],'undo_of':batch_id,'transfer_mode':'remove',
+                    'restore_sidecar_only':not any(member.item_id==op.item_id and member.kind=='move' for member in originals)})
                 plan.operations.insert(0,inverse)
                 continue
             if op.kind!='move':continue

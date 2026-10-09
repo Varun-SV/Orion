@@ -3,7 +3,7 @@ import requests
 from orion.config import Config
 from orion.store import Store
 from orion.library import Library
-from orion.discovery import Discovery
+from orion.discovery import Discovery,Cancelled
 from orion.providers import Providers,ProviderError,transport_error
 from orion.planner import Planner
 from orion.executor import Executor
@@ -28,10 +28,12 @@ class Services:
                 return {'item_id':item.id,'skipped':True,'reason':'item_changed'}
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
             values=[r.model_dump() for r in candidates]
+            if context.cancelled():raise Cancelled()
             if not self.library.publish_lookup(item.id,item.signature,values):
                 raise ProviderError('item_changed',payload.get('provider') or 'lookup')
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
+            if context.cancelled():raise Cancelled() from None
             self.library.lookup_failed(item.id,item.signature,exc.code)
             raise
 

@@ -92,6 +92,8 @@ class Library:
                     item=item.model_copy(update={'id':str(uuid4()),'decision':None,'status':'pending'})
             if row:
                 latest=self.from_row(row)
+                if self._has_unfinished_operations(conn,latest.id):
+                    return latest
                 item=item.model_copy(update={'id':latest.id})
                 if latest.signature == item.signature or not latest.signature:
                     item=item.model_copy(update={'decision':latest.decision,
@@ -102,6 +104,23 @@ class Library:
             conn.execute('INSERT INTO orion_items VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET path=excluded.path,kind=excluded.kind,status=excluded.status,signature=excluded.signature,metadata=excluded.metadata,decision=excluded.decision,updated_at=excluded.updated_at',
                 (item.id,item.source_id,item.path,item.kind,item.status,json.dumps(item.signature),json.dumps(safe_metadata(item.metadata)),item.decision.model_dump_json() if item.decision else None,utcnow()))
         return item
+
+    def _has_unfinished_operations(self,conn,item_id):
+        # A stopped batch still owns intermediate filesystem observations.
+        # A successful full undo releases that ownership for future arrivals.
+        return conn.execute("""SELECT 1 FROM orion_batches b
+            JOIN orion_operations o ON o.plan_id=b.plan_id
+            WHERE json_extract(o.data,'$.item_id')=? AND json_extract(o.data,'$.state')!='completed'
+            AND EXISTS(SELECT 1 FROM orion_operations moved WHERE moved.plan_id=b.plan_id
+                AND json_extract(moved.data,'$.item_id')=json_extract(o.data,'$.item_id')
+                AND json_extract(moved.data,'$.kind')='move'
+                AND (json_extract(moved.data,'$.state')='completed'
+                    OR json_extract(moved.data,'$.verification.final_signature') IS NOT NULL
+                    OR (json_extract(moved.data,'$.verification.mode')='case_rename'
+                        AND json_extract(moved.data,'$.verification.temp_signature') IS NOT NULL)))
+            AND NOT EXISTS(SELECT 1 FROM orion_batches restored JOIN orion_plans p ON p.id=restored.plan_id
+                WHERE restored.state='completed' AND json_extract(p.data,'$.undo_batch_id')=b.id)
+            LIMIT 1""",(item_id,)).fetchone() is not None
 
     def _ensure_decision_editable(self,conn,item_id):
         active=conn.execute("SELECT kind,payload FROM orion_jobs WHERE state IN ('running','cancelling') AND kind IN ('organise','undo','sidecars','recovery')").fetchall()

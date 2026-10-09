@@ -109,14 +109,16 @@ def remove_destination(destination_id:str,runtime:Runtime):
 @router.get('/categories')
 def categories(runtime:Runtime):
     with runtime.store.transaction() as conn:
-        rows=[dict(r) for r in conn.execute('SELECT * FROM orion_categories ORDER BY name')]
+        rows=[dict(r) for r in conn.execute('SELECT * FROM orion_categories WHERE rowid IN '
+            '(SELECT MIN(rowid) FROM orion_categories GROUP BY kind) ORDER BY name')]
     return [{**r,'api_pref':runtime.providers.preferred_provider(r['kind']),'compatible_providers':compatible_providers(r['kind'])} for r in rows]
 
 @router.put('/categories/{category_id}')
 def update_category(category_id:str,body:CategoryUpdate,runtime:Runtime):
     valid_relative(body.dest_subpath)
     with runtime.store.transaction() as conn:
-        category = conn.execute('SELECT kind FROM orion_categories WHERE id=?',(category_id,)).fetchone()
+        category = conn.execute('SELECT kind FROM orion_categories WHERE id=? AND rowid IN '
+            '(SELECT MIN(rowid) FROM orion_categories GROUP BY kind)',(category_id,)).fetchone()
         if not category: raise KeyError('Category not found')
         check_provider_preference(category['kind'],body.api_pref)
         changed = conn.execute('UPDATE orion_categories SET dest_subpath=?,api_pref=? WHERE id=?',(body.dest_subpath,body.api_pref,category_id)).rowcount

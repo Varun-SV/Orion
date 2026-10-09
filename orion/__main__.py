@@ -11,7 +11,7 @@ import requests
 import uvicorn
 from orion.app import create_app
 from orion.config import Config
-from orion.launcher import InstanceLock,existing_url
+from orion.launcher import InstanceLock,existing_url,workspace_id
 
 async def serve(args,cfg):
     sock = socket.socket()
@@ -67,7 +67,10 @@ def main():
                 session.trust_env = False
                 response = session.get(url+'/api/v1/session',timeout=5)
                 response.raise_for_status()
-                token = response.json()['csrf_token']
+                identity = response.json()
+                if identity.get('workspace_id') != workspace_id(cfg.app_data_dir):
+                    raise RuntimeError('Instance record points to another Orion workspace. Start this workspace again before stopping it.')
+                token = identity['csrf_token']
                 stopped = session.post(url+'/api/v1/stop',headers={'X-Orion-CSRF':token},timeout=10)
                 stopped.raise_for_status()
             print('Orion is stopping.',flush=True)

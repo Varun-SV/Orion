@@ -155,13 +155,15 @@ export function Jobs() {
               )}
               {batchId && (
                 <>
-                  <button
-                    className="secondary"
-                    disabled={busy === batchId}
-                    onClick={() => void undo(batchId)}
-                  >
-                    Preview undo
-                  </button>
+                  {['organise', 'sidecars'].includes(job.kind) && (
+                    <button
+                      className="secondary"
+                      disabled={busy === batchId}
+                      onClick={() => void undo(batchId)}
+                    >
+                      Preview undo
+                    </button>
+                  )}
                   <button className="text-button" onClick={() => void details(batchId)}>
                     Operation details
                   </button>

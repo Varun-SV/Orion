@@ -222,7 +222,7 @@ class Planner:
             if target is None:
                 candidates = sorted([(str(Path(video).with_suffix('')),dst) for video,dst in mappings.items()],key=lambda r:len(r[0]),reverse=True)
                 for stem,dst in candidates:
-                    if str(Path(relative)).startswith(stem+'.'):
+                    if os.path.normcase(str(Path(relative))).startswith(os.path.normcase(stem+'.')):
                         suffix = str(Path(relative))[len(stem):]
                         target = dst.with_name(dst.stem+suffix)
                         break
@@ -325,6 +325,7 @@ class Planner:
         issues = list(checked.issues)
         required_space = {}
         checked_items = set()
+        checked_targets = set()
         for op in checked.operations:
             src,dst = Path(op.source),Path(op.destination)
             details = op.verification
@@ -352,6 +353,16 @@ class Planner:
                         if signature(Path(done.destination))!=done.verification['final_signature'] or Filesystem().hash(done.destination)!=done.verification['sha256']:
                             issue('target_changed','Completed media changed before retry')
                     except (OSError,ValueError):issue('target_changed','Completed media is unavailable')
+            target = details.get('restore_item_path') or details.get('destination_item_path')
+            target_key = (op.item_id,normalized(target)) if target else None
+            if target_key and target_key not in checked_targets:
+                current_item = self.library.get(op.item_id)
+                with self.store.transaction() as conn:
+                    indexed = conn.execute('SELECT path FROM orion_items WHERE source_id=? AND id!=?',
+                                           (current_item.source_id,op.item_id)).fetchall()
+                if any(normalized(row['path']) == target_key[1] for row in indexed):
+                    issue('indexed_destination_exists','Another indexed item owns the final item path: '+str(target))
+                checked_targets.add(target_key)
             if op.item_id not in checked_items:
                 current_item = self.library.get(op.item_id)
                 current_decision = current_item.decision.model_dump() if current_item.decision else None

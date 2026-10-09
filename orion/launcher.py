@@ -1,6 +1,7 @@
 """Cross-platform launcher primitives and safe local instance discovery."""
 from __future__ import annotations
 import json
+import hashlib
 import os
 import socket
 from pathlib import Path
@@ -42,6 +43,13 @@ class InstanceLock:
             self.handle.close()
             self.handle = None
 
+
+def workspace_id(data_dir):
+    """Opaque identity shared by launch/stop across equivalent directory paths."""
+    canonical = os.path.normcase(str(Path(data_dir).resolve()))
+    return hashlib.sha256(os.fsencode(canonical)).hexdigest()
+
+
 def available_port(port):
     try:
         with socket.socket() as sock:
@@ -56,6 +64,15 @@ def existing_url(data_dir):
         parsed = urlsplit(value)
         if parsed.scheme!='http' or parsed.hostname!='127.0.0.1' or not parsed.port or parsed.path or parsed.query or parsed.fragment:
             raise ValueError()
-        return value
+        probe = InstanceLock(data_dir)
+        try:
+            probe.acquire()
+        except RuntimeError:
+            # A live instance owns the requested data directory. Reading a URL
+            # from an unlocked crash record must never authorize a stop request.
+            return value
+        else:
+            probe.release()
+            raise RuntimeError('No running Orion instance holds this data directory lock. Start Orion first.')
     except (OSError,ValueError,KeyError,TypeError):
         raise RuntimeError('No valid local Orion instance record. Start Orion first.') from None
