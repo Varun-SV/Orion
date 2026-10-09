@@ -52,3 +52,14 @@ def test_isolated_config_retains_prefs_without_plaintext_secrets(tmp_path):
     assert Config(tmp_path).get_pref('theme') == 'night'
     with pytest.raises(ValueError):
         cfg.set_pref('api_key', 'secret')
+
+def test_migration_does_not_publish_free_form_legacy_secrets(legacy):
+    with sqlite3.connect(legacy) as conn:
+        conn.execute("INSERT INTO activity_log(action,item_path,detail,status) VALUES(?,?,?,?)",('lookup','movie.mkv','HTTP 401 https://api.example/path?api_key=old-private-key','error'))
+    store=Store(legacy);backup=store.migrate()
+    with store.transaction() as conn:
+        row=conn.execute('SELECT * FROM orion_activity').fetchone()
+        assert row['action']=='lookup' and row['status']=='error'
+        assert 'old-private-key' not in row['detail']
+    with sqlite3.connect(backup) as conn:
+        assert 'old-private-key' in conn.execute('SELECT detail FROM activity_log').fetchone()[0]

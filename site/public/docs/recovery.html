@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Backup & recovery guide for the local Orion media workspace."
+    />
+    <title>Backup & recovery guide · Orion</title>
+    <link rel="icon" href="/Orion/favicon.svg" />
+    <link rel="stylesheet" href="/Orion/docs/document.css" />
+  </head>
+  <body>
+    <a class="back" href="/Orion/#install">← Orion project site</a>
+    <main>
+      <p class="eyebrow">ORION / LOCAL WORKSPACE</p>
+      <h1>Backup & recovery guide</h1>
+      <p>
+        The job journal helps explain and recover recorded work. It does not
+        replace an independent backup of your media.
+      </p>
+      <h2>Before an upgrade</h2>
+      <p>
+        Stop the local backend using <code>python -m orion stop</code>,
+        supplying the same <code>--data-dir</code> if you chose one. Preserve
+        the app data directory and a separate backup of your media. The default
+        data location is <code>%APPDATA%\Orion</code> on Windows, or
+        <code>~/Orion</code> when APPDATA is absent. An explicit
+        <code>--data-dir</code> overrides the default.
+      </p>
+      <p>
+        The app data directory holds <code>organizer.db</code> and
+        <code>prefs.json</code>. If SQLite <code>-wal</code> or
+        <code>-shm</code> files remain, preserve the whole directory together.
+        Do not copy only the live database while jobs are writing. Keychain
+        credentials are separate from this directory.
+      </p>
+      <h2>Database migration failures</h2>
+      <p>
+        Existing databases receive a consistent SQLite snapshot before schema
+        upgrade. These files are named
+        <code>organizer.db.backup-&lt;timestamp&gt;-&lt;id&gt;</code>. Failed
+        migrations stop startup. Preserve both the database and snapshot; use a
+        compatible app version when restoring an older database.
+      </p>
+      <p>
+        Stop all instances before restoring. Preserve the current app data
+        directory as a separate copy, restore a known consistent backup as a
+        complete data set, and restart with the matching app version. Do not
+        combine an old database with unrelated current WAL files. A newer schema
+        cannot be opened by an older Orion build.
+      </p>
+      <h2>Interrupted organisation</h2>
+      <p>
+        After restarting, formerly running jobs are marked interrupted. Open the
+        Job centre and inspect the job and recorded operations before retrying.
+        Reconnect unavailable source or destination volumes first. Check partial
+        copies and reported path conflicts rather than moving files by hand
+        while Orion is running.
+      </p>
+      <p>
+        Completed operations are recorded separately from pending or failed
+        operations. Retry is offered only for eligible jobs. Destination files
+        are not overwritten. Cross-volume transfer records and verification
+        guard deletion of originals; cancellation can leave reviewable partial
+        work.
+      </p>
+      <h2>Preview undo</h2>
+      <p>
+        Undo is a new job linked to a recorded batch. Review its proposed paths
+        before approval. Orion checks recorded file state and refuses unsafe
+        reversals when files have changed externally or an original path is
+        occupied. Only unchanged sidecars created by that batch are eligible for
+        removal. Undo cannot reverse arbitrary later edits or replace lost
+        media.
+      </p>
+      <h2>Privacy and reports</h2>
+      <p>
+        The installed UI and API share a loopback origin. Optional providers and
+        media servers receive the data needed for identification and library
+        lookups. Keys are stored in the OS keychain or explicit session-only
+        mode, and exports exclude credentials. Reports contain original and
+        final paths: review them before sharing.
+      </p>
+      <p>
+        The public demo uses fictional fixture data only. It cannot reach your
+        installed backend, read your media or execute a real organisation plan.
+        The public site stores its colour theme in browser local storage.
+      </p>
+    </main>
+    <footer>
+      <a href="/Orion/#recovery">Recovery & privacy</a> ·
+      <a href="https://github.com/Varun-SV/Orion">Source on GitHub</a>
+    </footer>
+  </body>
+</html>

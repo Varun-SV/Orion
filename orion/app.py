@@ -66,7 +66,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         if request.headers.get('sec-fetch-site')=='cross-site':
             return JSONResponse({'code':'invalid_origin','message':'Cross-site requests are excluded.'},status_code=403)
         if request.method not in ('GET','HEAD','OPTIONS'):
-            if not hmac.compare_digest(request.cookies.get('orion_session',''),cookie) or not hmac.compare_digest(request.headers.get('x-orion-csrf',''),csrf):
+            if not hmac.compare_digest(request.cookies.get('orion_session_'+str(request.url.port or 80),''),cookie) or not hmac.compare_digest(request.headers.get('x-orion-csrf',''),csrf):
                 return JSONResponse({'code':'session_required','message':'Reload Orion to establish a local session.'},status_code=403)
         response = await call_next(request)
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -89,8 +89,8 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         return JSONResponse({'code':'invalid_payload','errors':[{'location':e['loc'],'message':e['msg'],'type':e['type']} for e in exc.errors()]},status_code=422)
 
     @app.get('/api/v1/session')
-    def session(response:Response):
-        response.set_cookie('orion_session',cookie,httponly=True,samesite='strict',max_age=86400)
+    def session(request:Request,response:Response):
+        response.set_cookie('orion_session_'+str(request.url.port or 80),cookie,httponly=True,samesite='strict',max_age=86400)
         return {'csrf_token':csrf}
 
     @app.get('/api/v1/health')

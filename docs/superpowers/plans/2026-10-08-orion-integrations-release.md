@@ -1,6 +1,6 @@
 # Orion integrations and release implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Complete the productivity features and preserved PR goals, then validate/package the whole replacement app.
 
@@ -40,7 +40,7 @@ Create `orion/profiles.py`, `duplicates.py`, `watcher.py`, `reports.py`, `integr
 **Files:** `orion/profiles.py`, `duplicates.py`, `watcher.py`, `reports.py`, their routes/tests, frontend controls/tests.
 **Interfaces:** `Profiles.save(profile: NamingProfile) -> NamingProfile`; `Duplicates.compare(item_ids: list[str], exact: bool, context: JobContext) -> Comparison`; `Watcher.tick(context: JobContext) -> DiscoverySummary`; `Reports.export(job_id: str, format: Literal['csv','json']) -> bytes`.
 
-- [ ] Write tests for valid/invalid templates, traversal rejection, renderer consistency, exact hashes versus versions, download stability intervals, offline drive backoff, opt-in persistence and CSV/JSON escaping/secrets. Core assertions:
+- [x] Write tests for valid/invalid templates, traversal rejection, renderer consistency, exact hashes versus versions, download stability intervals, offline drive backoff, opt-in persistence and CSV/JSON escaping/secrets. Core assertions:
 ```python
 assert comparison.exact_groups == [[first.id, identical.id]]
 assert alternate.id not in comparison.exact_groups[0]
@@ -49,16 +49,16 @@ assert stable_tick.queued == 1
 assert 'api_key' not in report.decode()
 ```
 UI tests ensure comparison cannot silently delete and watching cannot auto-organise.
-- [ ] Run new backend/UI tests; expect missing services and controls.
-- [ ] Implement presets with the shared renderer. Compare IDs/tags/signatures and on-demand SHA-256; distinct editions are versions, not exact duplicates. Use bounded periodic watching initially with configurable file-stability/debounce and persisted checkpoints. Generate actual stored plan/result exports only on user request.
-- [ ] Run full backend/UI suites/typecheck/build; expect passing. Commit `feat: add presets version comparison watchers and reports`.
+- [x] Run new backend/UI tests; expect missing services and controls.
+- [x] Implement presets with the shared renderer. Compare IDs/tags/signatures and on-demand SHA-256; distinct editions are versions, not exact duplicates. Use bounded periodic watching initially with configurable file-stability/debounce and persisted checkpoints. Generate actual stored plan/result exports only on user request.
+- [x] Run full backend/UI suites/typecheck/build; expect passing. Commit `feat: add presets version comparison watchers and reports`.
 
 ### Task 2: Jellyfin/Emby integration and episode gaps
 
 **Files:** `orion/integrations/server.py`, `gaps.py`, integration routes, `tests/test_media_server.py`, `test_episode_gaps.py`, frontend server settings/duplicate hints/EpisodeGaps and tests.
 **Interfaces:** `MediaServerClient(config, credentials)` exposes `test_connection() -> ServerInfo`, `users() -> list[ServerUser]`, `items(query: ServerQuery) -> list[ServerItem]`, `episodes(series_id: str) -> list[ServerEpisode]`, `refresh() -> RefreshResult`; unavailable/error is distinct from empty. `EpisodeGaps.compare(series_id: str, provider_mapping: ProviderMapping, include_specials: bool, context: JobContext) -> GapReport`.
 
-- [ ] Test both servers with local HTTP fixtures: key headers without logs/secrets, explicit user context, paginated items/episodes, resolution metadata, bounded timeouts, mapping ambiguity, unaired entries/specials, cached catalogue data and failed refresh independent of file success:
+- [x] Test both servers with local HTTP fixtures: key headers without logs/secrets, explicit user context, paginated items/episodes, resolution metadata, bounded timeouts, mapping ambiguity, unaired entries/specials, cached catalogue data and failed refresh independent of file success:
 ```python
 assert len(client.items(query)) == 125 # spans fixture pages
 assert gap_report.missing == [(1, 3)]
@@ -68,16 +68,16 @@ assert completed_batch.state == 'completed'
 assert refresh_job.state == 'failed'
 ```
 UI tests cover connection/user selection and unavailable gap reports.
-- [ ] Run new tests; expect absent typed adapters/gap logic.
-- [ ] Verify official current Jellyfin/Emby API contracts before adapting PR #1. Implement pagination, typed errors, duplicate evidence, credential settings, explicit connection tests and opt-in successful-batch refresh. Gap analysis uses confirmed provider mapping plus rate-limited cached TMDb season/episode data. Server/catalogue failure cannot imply a full missing season.
-- [ ] Run all suites/mock-server full flows; expect passing. Record live-server checks separately when available. Commit `feat: add Jellyfin Emby discovery and episode gap analysis`.
+- [x] Run new tests; expect absent typed adapters/gap logic.
+- [x] Verify official current Jellyfin/Emby API contracts before adapting PR #1. Implement pagination, typed errors, duplicate evidence, credential settings, explicit connection tests and opt-in successful-batch refresh. Gap analysis uses confirmed provider mapping plus rate-limited cached TMDb season/episode data. Server/catalogue failure cannot imply a full missing season.
+- [x] Run all suites/mock-server full flows; expect passing. Record live-server checks separately when available. Commit `feat: add Jellyfin Emby discovery and episode gap analysis`.
 
 ### Task 3: Persisted provider metadata and journalled sidecars
 
 **Files:** `orion/integrations/sidecars.py`, provider/planner/executor extensions, `tests/test_sidecars.py`, frontend sidecar profile controls/tests.
 **Interfaces:** `Sidecars.plan(item: MediaItem, profile: NamingProfile) -> list[SidecarSpec]`. Specs have kind/path/provider metadata/optional artwork origin; execution uses recorded no-replace operations. Decisions/plans retain title/year/plot/provider IDs/cover URLs/release MBID.
 
-- [ ] Test metadata round-trip/migration, XML escaping/unique IDs, movie/series/artist/album/episode layouts, defaults off, existing-file races, interrupted generation/downloads, tag-only audio without cover ID and undo preserving external changes:
+- [x] Test metadata round-trip/migration, XML escaping/unique IDs, movie/series/artist/album/episode layouts, defaults off, existing-file races, interrupted generation/downloads, tag-only audio without cover ID and undo preserving external changes:
 ```python
 assert parsed_nfo.findtext('title') == 'A & B'
 assert existing_poster.read_bytes() == user_poster
@@ -85,9 +85,9 @@ assert original_sidecar.read_bytes() == original_bytes
 assert undo.created_sidecars_removed == [unchanged_batch_sidecar]
 assert tag_only_item.artwork_state == 'release_id_unavailable'
 ```
-- [ ] Run sidecar/backend/UI tests; expect missing journalled output behavior.
-- [ ] Adapt PR #1 writers using bounded fetches, temporary output/no-replace finalisation. Include enabled sidecar operations in preview/journal; preserve existing associated files. Cache/rate-limit per-episode metadata. Unavailable optional art is an explicit warning/retryable result, not destructive failure. Store credential-free metadata only.
-- [ ] Run complete suites; expect passing no-overwrite/recovery/undo tests. Commit `feat: add recoverable opt-in NFO and artwork generation`.
+- [x] Run sidecar/backend/UI tests; expect missing journalled output behavior.
+- [x] Adapt PR #1 writers using bounded fetches, temporary output/no-replace finalisation. Include enabled sidecar operations in preview/journal; preserve existing associated files. Cache/rate-limit per-episode metadata. Unavailable optional art is an explicit warning/retryable result, not destructive failure. Store credential-free metadata only.
+- [x] Run complete suites; expect passing no-overwrite/recovery/undo tests. Commit `feat: add recoverable opt-in NFO and artwork generation`.
 
 ### Task 4: Review, CI, standalone packaging and release handoff
 

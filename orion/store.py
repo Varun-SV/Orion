@@ -168,7 +168,7 @@ class Store:
                 insert(row,row['source_path'],kind,row,saved.get(row['source_path']))
         for row in rows('activity_log'):
             conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',
-                         (row['action'], json.dumps(safe_metadata(row)), row['status'],row['created_at']))
+                         (row['action'], json.dumps({'legacy_id':row['id'],'summary':'Legacy activity imported. Free-form details remain in the original tables and migration backup.'}), row['status'],row['created_at']))
 
     def counts(self):
         result = {'video':0,'music':0,'books':0}

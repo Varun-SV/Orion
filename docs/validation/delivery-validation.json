@@ -1,0 +1,59 @@
+{
+  "observed_at_utc": "2026-10-09T04:14:15.190941+00:00",
+  "scope": "local uncommitted implementation tree; remote exact-commit CI still requires separate evidence",
+  "full_backend_with_packaged_smoke": {
+    "command": "ORION_PACKAGE_EXE=dist/Orion/Orion.exe python -m pytest -q",
+    "passed": 223,
+    "skipped": 0,
+    "duration_seconds": 68.4
+  },
+  "official_actionlint": {
+    "version": "1.7.12",
+    "platform": "windows_amd64",
+    "archive_sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+    "official_manifest_verified": true,
+    "exit_code": 0
+  },
+  "workflow_policy_command": "python scripts/check_workflows.py",
+  "workflow_policy_exit_code": 0,
+  "hashed_dependency_dry_run": {
+    "command": "uv pip install --dry-run --python .venv/Scripts/python.exe --require-hashes -r requirements-dev.lock",
+    "packages_checked": 60,
+    "changes_required": false
+  },
+  "lock_sha256": {
+    "requirements-web.lock": "dd7cea5d178fb3d8a157c86ab0d6e249440261949805b8aa8079eb7116d4ffd1",
+    "requirements-dev.lock": "deb3a1526561cfe1c22697d7f11eb6ee0aaf98e3f537be61c6ea216fc5ddd38c"
+  },
+  "package_smoke": {
+    "platform": "Windows",
+    "startup_seconds": 2.099,
+    "bundle_bytes": 57046286,
+    "health": {
+      "status": "ok",
+      "version": "0.2.0"
+    },
+    "static_assets_checked": 52,
+    "isolated_database": true,
+    "occupied_port_rejected": true,
+    "repeat_launch_reuses_instance": true,
+    "graceful_stop": true,
+    "system_path_empty": true,
+    "qt_resources": []
+  },
+  "archive": {
+    "name": "Orion-0.2.0-windows-x64.zip",
+    "bytes": 30204679,
+    "sha256": "7aa7573ff2a5e733892c39ef1f36891298cdd182f674edd485bb59d5a26cbb7b",
+    "checksum_validation_passed": true
+  },
+  "limits": [
+    "Hosted Ubuntu/Python 3.11/3.12 and Windows Actions matrix pending exact-commit runs.",
+    "Native macOS/Linux installer checks unavailable.",
+    "Unsigned Windows build.",
+    "Live Jellyfin/Emby server checks unavailable.",
+    "Main required CI status activation awaits real successful check and observed Actions app ID.",
+    "Pages live deployment awaits user-controlled main merge.",
+    "No validation release/tag created."
+  ]
+}

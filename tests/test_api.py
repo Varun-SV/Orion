@@ -233,3 +233,11 @@ def test_failed_provider_recheck_cannot_keep_old_connected_badge(client,monkeypa
     provider=next(p for p in client.get('/api/v1/providers').json() if p['id']=='tmdb')
     assert provider['health']=='unavailable'
     assert provider['detail']=='provider_unavailable'
+
+def test_browser_cookies_do_not_collide_between_isolated_instances(tmp_path):
+    with TestClient(create_app(tmp_path/'first'),base_url='http://127.0.0.1:4321') as first, TestClient(create_app(tmp_path/'second'),base_url='http://127.0.0.1:4322') as second:
+        token=first.get('/api/v1/session').json()['csrf_token']
+        second.cookies.update(first.cookies)
+        second.get('/api/v1/session')
+        first.cookies.update(second.cookies)  # Browsers share host cookies across ports.
+        assert first.put('/api/v1/settings',json={'theme':'night'},headers={'X-Orion-CSRF':token}).status_code==200
