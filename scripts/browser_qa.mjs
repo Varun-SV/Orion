@@ -161,10 +161,14 @@ try {
     await expect(page.getByLabel("Replacement media server API key", {exact:true})).toHaveCount(1);
   });
   await check("Disabled media-server integration permits credential removal", async () => {
+    // Explicit session storage keeps this fixture independent of an OS vault.
+    await request("/server/credentials", {key:"isolated-session-fixture",session_only:true}, "POST");
+    assert.equal((await request("/server")).configured,false);
     const clear=page.getByRole("button", {name:"Clear media server key",exact:true});
     await expect(clear).toBeEnabled();
     await clear.click();
     await expect(page.getByText("Server credential cleared.",{exact:true})).toBeVisible();
+    assert.equal((await request("/server")).storage,"session");
   });
   await navigate("settings", "Settings");
   await check("Movies preference rejects audio upload providers", async () => {

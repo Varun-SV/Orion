@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import stat
 from pathlib import Path
 from typing import Any
 from pydantic import Field
@@ -22,7 +23,14 @@ class Cancelled(Exception):
     pass
 
 def linked(path: Path):
-    return path.is_symlink() or getattr(path,'is_junction',lambda:False)()
+    if path.is_symlink():
+        return True
+    try:
+        # Path.is_junction is unavailable on Python 3.11. Inspect the tag
+        # without following the link; other reparse points are ordinary files.
+        return getattr(path.lstat(),'st_reparse_tag',0) == getattr(stat,'IO_REPARSE_TAG_MOUNT_POINT',0xA0000003)
+    except OSError:
+        return False
 
 def signature(path: Path, context: JobContext | None = None) -> dict[str, Any]:
     if linked(path):

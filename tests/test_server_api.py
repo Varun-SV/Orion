@@ -76,3 +76,33 @@ def test_server_hints_cache_cannot_be_reused_after_switching_server_context(clie
     assert client.put('/api/v1/server',json={'enabled':True,'url':url,'server_type':'jellyfin','user_id':'other'}).status_code==200
     cached=client.get('/api/v1/items/'+item.id+'/server-hints').json()
     assert cached['state']=='not_checked' and cached['items']==[]
+
+
+def test_disabled_server_session_key_can_be_cleared_without_keychain(client,monkeypatch):
+    import keyring
+    runtime=client.app.state.services
+    runtime.config.set_api_key('media_server','session-fixture',session_only=True)
+    assert not client.get('/api/v1/server').json()['configured']
+    assert runtime.config.get_api_key('media_server')=='session-fixture'
+    def unavailable(*args):
+        raise keyring.errors.NoKeyringError('No OS credential vault')
+    monkeypatch.setattr(keyring,'delete_password',unavailable)
+    for _ in range(2):
+        response=client.delete('/api/v1/server/credentials')
+        assert response.status_code==200
+        assert response.json()=={'configured':False}
+        assert runtime.config.get_api_key('media_server')==''
+    assert client.get('/api/v1/server').json()['storage']=='session'
+
+
+def test_disabled_server_keychain_key_is_removed_from_selected_storage(client):
+    import keyring
+    runtime=client.app.state.services
+    runtime.config.set_api_key('media_server','keychain-fixture')
+    assert not client.get('/api/v1/server').json()['configured']
+    assert keyring.get_password('Orion','media_server')=='keychain-fixture'
+    response=client.delete('/api/v1/server/credentials')
+    assert response.status_code==200
+    assert runtime.config.get_api_key('media_server')==''
+    assert keyring.get_password('Orion','media_server') is None
+    assert client.get('/api/v1/server').json()['storage']=='keychain'

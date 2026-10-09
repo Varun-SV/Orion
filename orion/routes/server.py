@@ -31,7 +31,7 @@ def credentials(body:Credentials,runtime:Runtime):
     return result
 @router.delete('/server/credentials')
 def clear(runtime:Runtime):
-    runtime.config.set_api_key('media_server','')
+    runtime.config.set_api_key('media_server','',session_only='media_server' in runtime.config._session_services)
     runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
     return {'configured':False}
 @router.post('/server/test',status_code=202)

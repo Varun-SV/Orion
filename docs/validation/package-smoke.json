@@ -1,7 +1,7 @@
 {
   "platform": "Windows",
-  "startup_seconds": 2.536,
-  "bundle_bytes": 57054970,
+  "startup_seconds": 2.545,
+  "bundle_bytes": 57055113,
   "health": {
     "status": "ok",
     "version": "0.2.0"

@@ -113,8 +113,8 @@
   ],
   "exceptions": [],
   "browser": "154.0.4258.62",
-  "reload_state": "running",
+  "reload_state": "queued",
   "generated_files": 64,
   "generated_bytes": 268435456,
-  "base_url": "http://127.0.0.1:49274"
+  "base_url": "http://127.0.0.1:53372"
 }

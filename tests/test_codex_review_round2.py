@@ -49,7 +49,10 @@ def test_filesystem_root_sources_cannot_overlap(library,tmp_path,root_first):
     with pytest.raises(ValueError,match='overlap'):library.add_source(second)
     assert len(library.sources())==1
 
-def test_source_rejects_linked_ancestor(library,tmp_path):
+@pytest.mark.parametrize('native_junction_check',[True,False])
+def test_source_rejects_linked_ancestor(library,tmp_path,monkeypatch,native_junction_check):
+    if not native_junction_check:
+        monkeypatch.setattr(Path,'is_junction',lambda self:False,raising=False)
     target=tmp_path/'real';(target/'child').mkdir(parents=True);link=tmp_path/'link'
     if os.name=='nt':
         import _winapi
