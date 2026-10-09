@@ -61,13 +61,27 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
       if (mounted.current) setBusy(false);
     }
   }
+  const selectedMetadata = {
+    ...item.metadata,
+    ...(choice?.metadata ?? item.decision?.metadata ?? {}),
+  };
+  function selectCandidate(candidate: Candidate | null) {
+    const metadata = {
+      ...item.metadata,
+      ...(candidate?.metadata ?? item.decision?.metadata ?? {}),
+    };
+    setChoice(candidate);
+    setName(candidate?.title ?? text(metadata.title, title(item)));
+    setYear(candidate?.year ?? text(metadata.year));
+    setFilename(text(candidate ? candidate.metadata.filename : item.decision?.metadata.filename));
+    setFields({});
+  }
   async function confirm() {
     setBusy(true);
     setError('');
     try {
       const metadata = {
-        ...item.metadata,
-        ...(choice?.metadata ?? item.decision?.metadata ?? {}),
+        ...selectedMetadata,
         ...fields,
         title: name.trim(),
         year,
@@ -138,11 +152,7 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
               type="radio"
               name="candidate"
               checked={choice === candidate}
-              onChange={() => {
-                setChoice(candidate);
-                setName(candidate.title);
-                setYear(candidate.year);
-              }}
+              onChange={() => selectCandidate(candidate)}
             />
             <span>
               <strong>
@@ -160,7 +170,12 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
           </label>
         ))}
         <label className="candidate">
-          <input type="radio" name="candidate" checked={!choice} onChange={() => setChoice(null)} />
+          <input
+            type="radio"
+            name="candidate"
+            checked={!choice}
+            onChange={() => selectCandidate(null)}
+          />
           {item.decision?.provider_id
             ? `Keep confirmed ${item.decision.provider} identity (${item.decision.provider_id}) and correct fields`
             : 'Manual correction'}
@@ -179,7 +194,7 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
           <label className="field" key={field}>
             {field === 'track_number' ? 'Track number' : field[0].toUpperCase() + field.slice(1)}
             <input
-              value={fields[field] ?? text(item.decision?.metadata[field] ?? item.metadata[field])}
+              value={fields[field] ?? text(selectedMetadata[field])}
               onChange={(e) => setFields({ ...fields, [field]: e.target.value })}
             />
           </label>

@@ -154,6 +154,19 @@ try {
       true,
     );
   });
+  await navigate("connections", "Connections");
+  await check("One media-server control panel with seven real providers", async () => {
+    await expect(page.getByRole("heading", {name:"Open Library",exact:true})).toBeVisible();
+    await expect(page.getByRole("button", {name:"Save media server",exact:true})).toHaveCount(1);
+    await expect(page.getByLabel("Replacement media server API key", {exact:true})).toHaveCount(1);
+  });
+  await navigate("settings", "Settings");
+  await check("Movies preference rejects audio upload providers", async () => {
+    const category = page.locator(".category-form").filter({has:page.getByRole("heading",{name:"Movies",exact:true})});
+    const select=category.getByRole("combobox", {name:"Preferred provider"});
+    await expect(select).toHaveValue("tmdb");
+    assert.deepEqual(await select.locator("option:not([disabled])").evaluateAll(options=>options.map(o=>o.value)), ["tmdb"]);
+  });
   await navigate("sources", "Sources & destinations");
   await page.getByRole("textbox", { name: "Source folder path" }).fill(source);
   await page

@@ -119,7 +119,14 @@ test('secure storage failure requires explicit session-only replacement', async 
 test('appearance saves through settings API and category options remain readable', async () => {
   const requests = mockApi([], {
     '/categories': [
-      { id: 'movies', name: 'Movies', kind: 'movies', api_pref: 'tmdb', dest_subpath: 'Movies' },
+      {
+        id: 'movies',
+        name: 'Movies',
+        kind: 'movies',
+        api_pref: 'tmdb',
+        dest_subpath: 'Movies',
+        compatible_providers: ['tmdb'],
+      },
     ],
   });
   location.hash = 'settings';

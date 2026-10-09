@@ -327,7 +327,7 @@ class Executor:
             item.path = str(target)
             if target.exists():
                 item.signature = signature(target)
-            item.status = 'approved' if undo else 'organised'
+            item.status = ('approved' if item.decision else 'pending') if undo else 'organised'
             self.library.upsert(item)
 
     def undo_plan(self,batch_id,exclude_operation_ids=None) -> OperationPlan:
@@ -352,9 +352,10 @@ class Executor:
                 if not self._destination_matches(op):
                     plan.warnings.append(PlanIssue(code='sidecar_changed',detail='Generated sidecar changed or disappeared; retain it: '+str(source),item_id=op.item_id))
                     continue
+                item = self.library.get(op.item_id)
                 inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,kind='remove_created',source=str(source),destination=str(source),expected_signature=details['final_signature'],verification={
                     'source_root':details['destination_root'],'destination_root':details['destination_root'],'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['destination_root_resolved'],
-                    'item_path':str(source),'item_signature':details['final_signature'],'item_decision':self.library.get(op.item_id).decision.model_dump(),
+                    'item_path':str(source),'item_signature':details['final_signature'],'item_decision':item.decision.model_dump() if item.decision else None,
                     'sha256':details['sha256'],'undo_of':batch_id,'transfer_mode':'remove'})
                 plan.operations.insert(0,inverse)
                 continue

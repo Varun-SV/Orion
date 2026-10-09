@@ -9,6 +9,7 @@ interface Category {
   name: string;
   dest_subpath: string;
   api_pref: string;
+  compatible_providers: string[];
 }
 const names = {
   tmdb: 'TMDb',
@@ -22,7 +23,9 @@ const names = {
 function CategoryForm({ category }: { category: Category }) {
   const { refresh } = useWorkspace();
   const [path, setPath] = useState(category.dest_subpath),
-    [provider, setProvider] = useState(category.api_pref),
+    [provider, setProvider] = useState(
+      category.compatible_providers?.includes(category.api_pref) ? category.api_pref : '',
+    ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   async function save(e: FormEvent) {
@@ -52,16 +55,21 @@ function CategoryForm({ category }: { category: Category }) {
         <label className="field">
           Preferred provider
           <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-            {Object.entries(names).map(([id, name]) => (
-              <option value={id} key={id}>
-                {name}
-              </option>
-            ))}
+            <option value="" disabled>
+              Choose a provider
+            </option>
+            {Object.entries(names)
+              .filter(([id]) => category.compatible_providers?.includes(id))
+              .map(([id, name]) => (
+                <option value={id} key={id}>
+                  {name}
+                </option>
+              ))}
           </select>
         </label>
       </div>
       {error && <p role="alert">{error}</p>}
-      <button className="secondary" disabled={busy} type="submit">
+      <button className="secondary" disabled={busy || !provider} type="submit">
         Save {category.name}
       </button>
     </form>

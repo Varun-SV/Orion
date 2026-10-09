@@ -52,7 +52,7 @@ class Profiles:
         self.validate(profile)
         with self.store.transaction() as conn:
             row=conn.execute('SELECT data FROM orion_profiles WHERE id=?',(profile.id,)).fetchone()
-            current=NamingProfile.model_validate_json(row['data']) if row else None
+            current=NamingProfile.model_validate_json(row['data']) if row else next((p for p in self.defaults() if p.id==profile.id),None)
             if profile.version != (current.version if current else 1):raise ValueError('Profile version changed; reload before saving')
             saved=profile.model_copy(update={'version':current.version+1 if current else 1})
             conn.execute('INSERT INTO orion_profiles VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,data=excluded.data',

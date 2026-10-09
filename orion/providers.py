@@ -32,7 +32,22 @@ class RateLimiter:
             time.sleep(min(wait,0.05))
 
 LIMITER = RateLimiter()
-PROVIDERS = ('tmdb','anilist','anidb','musicbrainz','acoustid','audd','openlibrary')
+PROVIDER_KINDS = {
+    'tmdb': ('movies','series','anime','anime_films','web_series'),
+    'anilist': ('anime','anime_films'), 'anidb': ('anime','anime_films'),
+    'musicbrainz': ('music',), 'acoustid': ('music',), 'audd': ('music',),
+    'openlibrary': ('books',),
+}
+PROVIDERS = tuple(PROVIDER_KINDS)
+
+def compatible_providers(kind):
+    return [provider for provider,kinds in PROVIDER_KINDS.items() if kind in kinds]
+
+def validate_provider(kind,provider):
+    if provider not in PROVIDER_KINDS:
+        raise ProviderError('unknown_provider',str(provider))
+    if kind not in PROVIDER_KINDS[provider]:
+        raise ProviderError('provider_incompatible',provider)
 
 class Providers:
     def __init__(self, config, request=None):
@@ -89,8 +104,7 @@ class Providers:
 
     def candidates(self, item: MediaItem, context: JobContext, provider=None) -> list[Candidate]:
         provider = provider or self.config.get_pref('provider_' + item.kind) or ('musicbrainz' if item.kind=='music' else 'openlibrary' if item.kind=='books' else 'anilist' if item.kind in ('anime','anime_films') else 'tmdb')
-        if provider not in PROVIDERS:
-            raise ProviderError('unknown_provider',str(provider))
+        validate_provider(item.kind,provider)
         title = str(item.metadata.get('title',''))
         try:
             raw = getattr(self,'_' + provider)(item,title,context)

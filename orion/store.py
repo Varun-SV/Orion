@@ -120,8 +120,9 @@ class Store:
         def kind_for(name):
             text = name.lower().replace(' ', '_')
             return {'movie':'movies','tv':'series','anime_movie':'anime_films','webseries':'web_series','book':'books'}.get(text, text if text in KINDS else 'movies')
+        category_kinds = {cat['name']:kind_for(cat.get('media_type') or cat['name']) for cat in rows('categories')}
         for cat in rows('categories'):
-            kind = kind_for(cat.get('name', cat.get('media_type', 'movies')))
+            kind = category_kinds[cat['name']]
             conn.execute('INSERT INTO orion_categories VALUES(?,?,?,?,?,?)', (str(cat['id']),cat['name'],kind,cat.get('api_pref','tmdb'),cat.get('dest_subpath',''),json.dumps(safe_metadata(cat))))
         videos = rows('scan_items')
         file_choices = {normalized(r['original_path']): r for r in rows('file_rename_choices')}
@@ -161,7 +162,7 @@ class Store:
             explicit = file_choices.get(normalized(row['path']))
             if explicit:
                 choice = {**(choice or {}), **explicit, 'filename':explicit['chosen_name'], 'title':(choice or {}).get('title', row['name'])}
-            insert(row,row['path'],kind_for(row.get('detected_category','movies')),{'title':row['name']},choice,row.get('source_folder_id'))
+            insert(row,row['path'],category_kinds.get(row.get('detected_category'),kind_for(row.get('detected_category') or 'movies')),{'title':row['name']},choice,row.get('source_folder_id'))
         for table, choice_table, kind in [('music_items','music_rename_choices','music'),('book_items','book_rename_choices','books')]:
             saved = {r['source_path']:r for r in rows(choice_table)}
             for row in rows(table):

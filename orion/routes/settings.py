@@ -4,7 +4,7 @@ from fastapi import APIRouter,Depends
 from pydantic import Field,SecretStr
 from orion.models import Record,Kind
 from orion.store import item_id,normalized,is_secret
-from orion.providers import PROVIDERS
+from orion.providers import PROVIDERS,compatible_providers,ProviderError,validate_provider
 from orion.discovery import linked
 from orion.naming import valid_relative
 from orion.routes.common import services
@@ -100,13 +100,15 @@ def remove_destination(destination_id:str,runtime:Runtime):
 @router.get('/categories')
 def categories(runtime:Runtime):
     with runtime.store.transaction() as conn:
-        return [dict(r) for r in conn.execute('SELECT * FROM orion_categories ORDER BY name')]
+        return [{**dict(r),'compatible_providers':compatible_providers(r['kind'])} for r in conn.execute('SELECT * FROM orion_categories ORDER BY name')]
 
 @router.put('/categories/{category_id}')
 def update_category(category_id:str,body:CategoryUpdate,runtime:Runtime):
     valid_relative(body.dest_subpath)
     with runtime.store.transaction() as conn:
         category = conn.execute('SELECT kind FROM orion_categories WHERE id=?',(category_id,)).fetchone()
+        if not category: raise KeyError('Category not found')
+        check_provider_preference(category['kind'],body.api_pref)
         changed = conn.execute('UPDATE orion_categories SET dest_subpath=?,api_pref=? WHERE id=?',(body.dest_subpath,body.api_pref,category_id)).rowcount
     if not changed: raise KeyError('Category not found')
     runtime.config.set_pref('provider_'+category['kind'],body.api_pref)
@@ -119,9 +121,17 @@ def settings(runtime:Runtime):
             'audd_enabled':cfg.get_pref('audd_enabled',False),'default_destination':cfg.get_pref('default_destination'),
             'providers':{k:cfg.get_pref('provider_'+k) for k in __import__('orion.models',fromlist=['KINDS']).KINDS}}
 
+def check_provider_preference(kind,provider):
+    try:
+        validate_provider(kind,provider)
+    except ProviderError:
+        raise ValueError('Choose a compatible provider for '+kind) from None
+
 @router.put('/settings')
 def update_settings(body:SettingsUpdate,runtime:Runtime):
     updates = body.model_dump(exclude_none=True)
+    for kind,provider in updates.get('providers',{}).items():
+        check_provider_preference(kind,provider)
     for key,value in updates.items():
         if key=='providers':
             for kind,provider in value.items(): runtime.config.set_pref('provider_'+kind,provider)

@@ -33,8 +33,7 @@ class Services:
                 self.library.status(item.id,'no_match')
             return {'item_id':item.id,'candidates':[r.model_dump() for r in candidates]}
         except ProviderError as exc:
-            self.library.annotate(item.id,lookup_state='error',lookup_error=exc.code)
-            self.library.status(item.id,'error')
+            self.library.lookup_failed(item.id,item.signature,exc.code)
             raise
 
     def handlers(self):

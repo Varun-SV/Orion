@@ -2,6 +2,8 @@
   "passed": true,
   "checks": [
     "First run and bundled fonts",
+    "One media-server control panel with seven real providers",
+    "Movies preference rejects audio upload providers",
     "Live configuration metrics",
     "Escape closes review and restores focus",
     "Optional sidecars default off and persist only after explicit saving",
@@ -111,5 +113,5 @@
   "reload_state": "running",
   "generated_files": 64,
   "generated_bytes": 268435456,
-  "base_url": "http://127.0.0.1:52564"
+  "base_url": "http://127.0.0.1:55423"
 }

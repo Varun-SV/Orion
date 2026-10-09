@@ -26,9 +26,14 @@ class RelativeLayout(Record):
 
 FIELDS = {'title','year','year_suffix','ext','quality','season','episode','episode_title','episode_title_suffix','artist','album','track_prefix','author','series','series_path'}
 
+RESERVED_NAMES = {'CON','PRN','AUX','NUL',*[f'{p}{n}' for p in ('COM','LPT') for n in range(1,10)]}
+
+def reserved_name(value):
+    return value.upper().split('.')[0] in RESERVED_NAMES
+
 def clean(value):
     text = re.sub(r'[<>:"/\\|?*\x00-\x1f]','-',str(value)).strip(' .')
-    if text.upper().split('.')[0] in {'CON','PRN','AUX','NUL',*[f'{p}{n}' for p in ('COM','LPT') for n in range(1,10)]}:
+    if reserved_name(text):
         text = '_' + text
     return text or 'Untitled'
 
@@ -38,7 +43,7 @@ def valid_relative(path):
     parsed = PurePosixPath(path)
     if parsed.is_absolute() or '..' in parsed.parts or not parsed.parts:
         raise ValueError('Naming cannot escape its selected root')
-    if any(part in ('.','') or part.endswith((' ','.')) for part in parsed.parts):
+    if any(part in ('.','') or part.endswith((' ','.')) or reserved_name(part) for part in parsed.parts):
         raise ValueError('Invalid path component')
     return parsed.as_posix()
 

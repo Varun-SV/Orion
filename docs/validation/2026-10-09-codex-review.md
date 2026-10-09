@@ -1,0 +1,25 @@
+# Codex review corrections — 9 October 2026
+
+All eight findings from the Codex review of PR #3 were reproduced and corrected. Regression tests were run against the original implementation first: 23 backend failures and all five new UI cases failed for the reported reasons; the compatible-provider and pending-item controls already passed.
+
+| Review comment | Correction | Regression evidence |
+| --- | --- | --- |
+| [Provider compatibility](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759905) | One provider/collection policy rejects incompatible choices before adapter invocation, sample reads, fingerprinting or external requests. Settings validate the entire provider update before applying it; category responses supply the compatible dropdown choices. | Explicit and saved preferences reject incompatible adapters; valid providers still dispatch; settings/category rejection leaves prior values intact; UI and production-browser checks exclude AudD from Movies. |
+| [Duplicate server controls](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759914) | Remove the server panel nested inside provider cards; retain one page-level panel. | Seven-provider fixture has one server form and one server-status request; actual browser confirms one panel with the production provider response. |
+| [Undo with cleared decision](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759919) | Generated-sidecar inverse records a nullable decision, just like media inverses. An undo with no current decision returns the item to pending review. | Real media/NFO organisation, decision clearing, undo preview and execution restore all original bytes and remove the unchanged generated NFO. |
+| [Legacy custom categories](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759924) | Map category display names to authoritative legacy media types and apply that map to category and item imports. | Custom series, anime, web-series and anime-film categories/items retain their kinds; migration backup remains present. |
+| [Built-in profile versions](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759928) | Treat the implicit built-in version as the current profile, so its first override advances from version 1 to 2. | Persisted first override is version 2; a stale version-1 editor is rejected without overwriting it. Existing custom-profile tests remain passing. |
+| [Windows reserved names](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759936) | Share the reserved-device check between metadata sanitisation and every rendered relative-path component. | Case-insensitive device names, names with extensions, literal naming templates and collection subfolders fail before persistence or execution. |
+| [Candidate editable fields](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759939) | Render editable fields from the same merged candidate metadata used by confirmation. Switching identities resets edited fields and filename overrides. Returning to the confirmed/manual identity restores its values. | Music, books and episodic candidates show their own fields and discard stale edits when switching; saved metadata matches visible fields. Existing explicit-empty-field regressions still pass. |
+| [Lookup failure workflow status](https://github.com/Varun-SV/Orion/pull/3#discussion_r4226759940) | Atomically record lookup errors while preserving the latest confirmed workflow status. Ignore results for a replaced signature. | Pending items enter error; approved and organised items retain their decision/status; a confirmation made while the request is in flight remains approved. |
+
+Validation on this Windows PC:
+
+- `pytest -q` with `ORION_PACKAGE_EXE` pointing to the rebuilt executable: **268 passed, no skips**, 79.97 seconds.
+- `npm --prefix frontend run check`: **47 UI tests passed**, TypeScript and production build passed.
+- `node scripts/browser_qa.mjs`: **106 production-browser checks passed**, no uncaught exceptions. The real-backend run organised 256 MiB of generated fixtures with optional NFO, reloaded an active job, then restored every original byte through guarded undo.
+- Fresh standalone Windows smoke: **52 assets checked**, isolated database, empty system PATH, instance reuse, occupied-port rejection and graceful stop. Observed startup 1.385 seconds; bundle 57,052,761 bytes.
+- All 52 packaged frontend resources match the final production build byte-for-byte.
+- Fresh ZIP: 30,206,020 bytes; SHA256 `8c99f923676eb65ceebf490ddd9ae98073bdc291646776c5097bc2576ef6c86d`. Archive/checksum verification passed. Local output: `dist/review-fixes-release/Orion-0.2.0-windows-x64.zip`.
+
+The public project-site code, main protection, CI policy and main-only Pages deployment rules are unchanged. Hosted CI runs on the pushed correction commit; its final result is recorded on the PR. No merge, tag or release publication is part of this review-fix request. Live authenticated external services remain unverified without the user's credentials.

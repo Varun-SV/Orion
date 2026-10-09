@@ -126,7 +126,6 @@ function ProviderCard({ provider: p }: { provider: Provider }) {
           </div>
         </form>
       )}
-      <ServerControls />
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
       <button
@@ -157,8 +156,8 @@ export function Connections() {
         need no API key; external requests run as bounded, cancellable jobs. Saved secret values are
         never returned to this page.
       </p>
-      <ServerControls />
       {error && <p role="alert">{error}</p>}
+      <ServerControls />
       <div className="settings-grid">
         {data?.map((provider) => (
           <ProviderCard key={provider.id} provider={provider} />

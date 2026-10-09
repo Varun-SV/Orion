@@ -126,6 +126,19 @@ class Library:
             conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',(json.dumps(current),utcnow(),item_id))
         return self.get(item_id)
 
+    def lookup_failed(self, item_id, observed_signature, code):
+        # Read and update under one writer transaction: confirmation/organisation
+        # may have completed while a bounded provider request was in flight.
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone()
+            latest=self.from_row(row)
+            if latest.signature != observed_signature:
+                return latest
+            metadata={**latest.metadata,'lookup_state':'error','lookup_error':code}
+            conn.execute("UPDATE orion_items SET metadata=?,status=CASE WHEN decision IS NULL THEN 'error' ELSE status END,updated_at=? WHERE id=?",
+                         (json.dumps(safe_metadata(metadata)),utcnow(),item_id))
+        return self.get(item_id)
+
     def status(self, item_id, status):
         if status not in ('pending','approved','organised','error','unavailable','no_match'):raise ValueError('Unknown item state')
         with self.store.transaction() as conn:
