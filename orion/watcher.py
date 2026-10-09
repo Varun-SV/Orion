@@ -57,7 +57,7 @@ class Watcher:
 
     @staticmethod
     def snapshot(root, context):
-        if not root.is_dir() or linked(root):
+        if not root.is_dir() or any(linked(parent) for parent in (root,*root.parents)):
             raise OSError('Source unavailable')
         result = {}
         errors = []

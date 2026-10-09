@@ -46,6 +46,21 @@ class Config:
     def set_api_key(self, service, key, session_only=False):
         key = key.strip()
         if session_only:
+            if service not in self._session_services:
+                try:
+                    import keyring
+                    try:
+                        persisted = keyring.get_password('Orion', service)
+                    except keyring.errors.NoKeyringError:
+                        # A fresh session key works without an OS vault, but a
+                        # known saved key must be removed before changing modes.
+                        if self._keys.get(service):
+                            raise
+                        persisted = None
+                    if persisted:
+                        keyring.delete_password('Orion', service)
+                except Exception as exc:
+                    raise ValueError('Cannot remove saved credential. Restore secure credential storage before choosing session-only.') from exc
             self._session_services.add(service)
         else:
             try:

@@ -144,7 +144,8 @@ class Planner:
         if item.signature['type'] == 'file':
             layout = Naming.render(item,options.profile).path
             target = source.parent/Path(layout).name if options.in_place else base/layout
-            companions = [p for p in source.parent.iterdir() if p != source and p.name.startswith(source.stem+'.') and p.suffix.lower() in ('.srt','.ass','.ssa','.sub','.idx','.vtt','.nfo','.jpg','.jpeg','.png','.webp') and p.is_file() and not linked(p)]
+            companion_prefix = os.path.normcase(source.stem+'.')
+            companions = [p for p in source.parent.iterdir() if p != source and os.path.normcase(p.name).startswith(companion_prefix) and p.suffix.lower() in ('.srt','.ass','.ssa','.sub','.idx','.vtt','.nfo','.jpg','.jpeg','.png','.webp') and p.is_file() and not linked(p)]
             original = target
             version = 2
             def members(candidate):

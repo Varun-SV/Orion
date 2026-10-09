@@ -108,7 +108,7 @@ class Library:
             raise ValueError('Decision must identify this item and supply a title')
         decision = decision.model_copy(update={'metadata':safe_metadata(decision.metadata)})
         with self.store.transaction() as conn:
-            changed=conn.execute("UPDATE orion_items SET decision=?,status='approved',updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
+            changed=conn.execute("UPDATE orion_items SET decision=?,status=CASE WHEN status='organised' THEN status ELSE 'approved' END,updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
         return self.get(item_id)
 

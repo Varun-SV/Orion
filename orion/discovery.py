@@ -120,7 +120,7 @@ class Discovery:
                 raise KeyError('Source not found')
             source = sources[sid]
             root = Path(source['path'])
-            if not root.is_dir() or linked(root):
+            if not root.is_dir() or any(linked(parent) for parent in (root,*root.parents)):
                 report.unavailable_sources.append(sid)
                 continue
             seen, candidates, walk_errors = set(), {}, []

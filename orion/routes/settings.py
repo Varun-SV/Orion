@@ -95,6 +95,8 @@ def remove_destination(destination_id:str,runtime:Runtime):
         if conn.execute('SELECT 1 FROM orion_plans WHERE data LIKE ? LIMIT 1',('%'+str(row['path']).replace('\\','\\\\')+'%',)).fetchone():
             raise ValueError('Destination is referenced by recovery history; keep it configured for undo.')
         conn.execute('DELETE FROM orion_destinations WHERE id=?',(destination_id,))
+    if runtime.config.get_pref('default_destination') == destination_id:
+        runtime.config.set_pref('default_destination',None)
     return {'removed':True}
 
 @router.get('/categories')

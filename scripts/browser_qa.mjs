@@ -53,7 +53,13 @@ const engine = spawn(
       ? "python"
       : "python3",
   ["-m", "orion", "--data-dir", data, "--port", "0", "--no-browser"],
-  { cwd: root, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
+  {
+    cwd: root,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    // Session credential tests must never query/remove a user's saved vault key.
+    env: {...process.env, PYTHON_KEYRING_BACKEND: "keyring.backends.null.Keyring"},
+  },
 );
 let stdout = "",
   stderr = "",

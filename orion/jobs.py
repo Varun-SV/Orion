@@ -10,7 +10,8 @@ from orion.providers import ProviderError
 from orion.store import safe_metadata,is_secret,utcnow
 
 TERMINAL = {'completed','failed','cancelled','interrupted'}
-WRITERS = {'organise','undo','sidecars','recovery'}
+# Discovery publishes filesystem signatures: keep it out of intermediate moves.
+WRITERS = {'organise','undo','sidecars','recovery','scan','watch_scan'}
 
 def serializable(value):
     if hasattr(value,'model_dump'):

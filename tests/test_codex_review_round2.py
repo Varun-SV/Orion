@@ -145,7 +145,7 @@ def test_undo_with_unrecorded_directory_member_requires_recovery(library,tmp_pat
     assert executor.execute(undo.id,1,context).state=='completed'
     assert library.get(item.id).status=='approved' and 'recovery_paths' not in library.get(item.id).metadata
 
-@pytest.mark.parametrize('kind', ['organise','scan'])
+@pytest.mark.parametrize('kind', ['organise','comparison'])
 def test_queued_cancel_is_nonterminal_until_scheduler_cleanup(library,kind):
     started=threading.Event();release=threading.Event();lock=threading.Lock();calls=[]
     count=1 if kind=='organise' else 3

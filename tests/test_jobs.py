@@ -120,15 +120,15 @@ def test_read_workers_are_bounded_without_blocking_writer(library):
     enough = threading.Event()
     running = []
     lock = threading.Lock()
-    def scan(payload,context):
+    def compare(payload,context):
         with lock:
             running.append(payload['id'])
             if len(running)==3: enough.set()
         assert release.wait(3)
         return {'ok':True}
-    manager = JobManager(library.store,{'scan':scan,'organise':lambda p,c:{'state':'completed'}})
+    manager = JobManager(library.store,{'comparison':compare,'organise':lambda p,c:{'state':'completed'}})
     try:
-        jobs = [manager.submit('scan',{'id':i}) for i in range(4)]
+        jobs = [manager.submit('comparison',{'id':i}) for i in range(4)]
         assert enough.wait(3)
         assert manager.get(jobs[3].id).state == 'queued'
         writer = manager.submit('organise',{})
