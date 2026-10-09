@@ -159,14 +159,16 @@ class Discovery:
                     break
                 path = Path(path_text)
                 iid = item_id(sid,path)
-                seen.add(iid)
                 try:
                     sig = signature(path,context)
                     try:
-                        old = self.library.get(iid)
+                        old = self.library.at_path(sid,path_text)
                     except KeyError:
                         old = None
+                    if old:
+                        iid = old.id
                     if old and old.signature == sig and not deep:
+                        seen.add(iid)
                         if old.status == 'unavailable':
                             self.library.status(iid, 'approved' if old.decision else 'pending')
                         report.unchanged += 1
@@ -175,7 +177,8 @@ class Discovery:
                     item = MediaItem(id=iid,source_id=sid,path=path_text,kind=kind,signature=sig,
                                      metadata=parsed_metadata(path,kind),decision=old.decision if preserved else None,
                                      status=old.status if preserved and old.status != 'unavailable' else 'pending')
-                    self.library.discovered(item)
+                    observed = self.library.discovered(item)
+                    seen.add(observed.id)
                     report.processed += 1
                     context.progress('Scanning',report.processed+report.unchanged,len(candidates))
                 except Cancelled:

@@ -94,7 +94,7 @@ assert tag_only_item.artwork_state == 'release_id_unavailable'
 **Files:** Production build spec/scripts, README/runtime/migration docs, `.github/workflows/ci.yml`, validation report and dependency locks.
 **Interfaces:** Packaged launcher serves `frontend/dist`, API and local data without Node/Qt. Preserve legacy launch instructions during migration review. Installation tests use an isolated data directory; do not overwrite the user's installed app.
 
-- [ ] Write package smoke tests for bundle resources, explicit data-dir launch, frontend/API routing, occupied ports and graceful stop; assert:
+- [x] Write package smoke tests for bundle resources, explicit data-dir launch, frontend/API routing, occupied ports and graceful stop; assert:
 ```python
 assert packaged_health.status_code == 200
 assert packaged_index.headers['content-type'].startswith('text/html')
@@ -102,8 +102,8 @@ assert fixture_db.exists()
 assert process.wait(timeout=10) == 0
 ```
 Run before packaging updates; expect missing bundle-resource behavior.
-- [ ] Implement static resource bundling, compatible dependency locks, CI and documented install/upgrade/backup/recovery/server/keychain/fingerprint setup. Measure actual package size/startup; do not promise unmeasured savings. Retain cross-platform source support while qualifying installer verification by OS.
-- [ ] Run all backend/UI suites/typecheck/build, production browser QA, migration/fault fixtures and isolated Windows package smoke tests. Report unavailable live-server/other-platform checks explicitly.
+- [x] Implement static resource bundling, compatible dependency locks, CI and documented install/upgrade/backup/recovery/server/keychain/fingerprint setup. Measure actual package size/startup; do not promise unmeasured savings. Retain cross-platform source support while qualifying installer verification by OS.
+- [x] Run all backend/UI suites/typecheck/build, production browser QA, migration/fault fixtures and isolated Windows package smoke tests. Report unavailable live-server/other-platform checks explicitly.
 - [ ] Request an independent whole-branch review using the chosen execution workflow; fix important actionable findings with regression tests, then rerun affected and full checks. Commit/push all completed code to PR #3.
 - [ ] Rewrite PR title/body around final implemented behavior and observed validation; remove spec-only status. Mark ready only when required work/checks are complete. Attach PR and hand off actual production preview with material verification limits. Do not merge.
 

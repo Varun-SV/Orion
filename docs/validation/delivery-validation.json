@@ -1,11 +1,11 @@
 {
-  "observed_at_utc": "2026-10-09T04:14:15.190941+00:00",
-  "scope": "local uncommitted implementation tree; remote exact-commit CI still requires separate evidence",
+  "observed_at_utc": "2026-10-09T04:35:57.581061+00:00",
+  "scope": "complete reviewed local implementation; hosted exact-commit CI evidence recorded separately",
   "full_backend_with_packaged_smoke": {
     "command": "ORION_PACKAGE_EXE=dist/Orion/Orion.exe python -m pytest -q",
-    "passed": 223,
+    "passed": 239,
     "skipped": 0,
-    "duration_seconds": 68.4
+    "duration_seconds": 74.65
   },
   "official_actionlint": {
     "version": "1.7.12",
@@ -27,8 +27,8 @@
   },
   "package_smoke": {
     "platform": "Windows",
-    "startup_seconds": 2.099,
-    "bundle_bytes": 57046286,
+    "startup_seconds": 1.982,
+    "bundle_bytes": 57050775,
     "health": {
       "status": "ok",
       "version": "0.2.0"
@@ -43,8 +43,8 @@
   },
   "archive": {
     "name": "Orion-0.2.0-windows-x64.zip",
-    "bytes": 30204679,
-    "sha256": "7aa7573ff2a5e733892c39ef1f36891298cdd182f674edd485bb59d5a26cbb7b",
+    "bytes": 30207115,
+    "sha256": "4f00919b4dffbe889ce8d4ef28a716eff41c0a5762a4fea6c0dd00009c295cc4",
     "checksum_validation_passed": true
   },
   "limits": [
@@ -55,5 +55,20 @@
     "Main required CI status activation awaits real successful check and observed Actions app ID.",
     "Pages live deployment awaits user-controlled main merge.",
     "No validation release/tag created."
-  ]
+  ],
+  "frontend": {
+    "component_tests_passed": 42,
+    "typecheck": true,
+    "production_build": true
+  },
+  "production_browser_checks_passed": 104,
+  "independent_review": {
+    "base": "839853e47b3e851866dedd2b33a05c3ba1a1b85c",
+    "head": "d4ce13d944fe53ed576530148d938e09d92e0911",
+    "critical": 0,
+    "important": 5,
+    "minor": 2,
+    "all_findings_fixed": true,
+    "deferred_minor_findings": []
+  }
 }

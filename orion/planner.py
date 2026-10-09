@@ -118,10 +118,11 @@ class Planner:
             except (ValueError,OSError) as exc:
                 issue('invalid_layout',str(exc),iid)
                 continue
+            if options.conflict == 'skip' and (not pairs or any(normalized(src)!=normalized(dst) and (dst.exists() or normalized(dst) in reserved) for src,dst,_ in pairs)):
+                plan.warnings.append(PlanIssue(code='item_skipped',detail='Keep this incoming item and all companions: its destination is occupied',item_id=iid))
+                continue
             for src,dst,expected in pairs:
                 if normalized(src) == normalized(dst):
-                    continue
-                if options.conflict == 'skip' and (dst.exists() or normalized(dst) in reserved):
                     continue
                 operation = Operation(id=str(uuid4()),plan_id=plan.id,item_id=iid,source=str(src),destination=str(dst),expected_signature=expected,
                                       verification={'source_root':str(source_root),'destination_root':str(destination_root),
@@ -288,7 +289,7 @@ class Planner:
             src,dst = Path(op.source),Path(op.destination)
             details = op.verification
             def issue(code,detail):
-                issues.append(PlanIssue(code=code,detail=detail,item_id=op.item_id,operation_id=op.id))
+                issues.append(PlanIssue(code=code,detail=detail,item_id=op.item_id,operation_id=details.get('original_operation_id',op.id)))
             srcroot,dstroot = Path(details['source_root']),Path(details['destination_root'])
             if not srcroot.is_dir() or not dstroot.is_dir():
                 issue('destination_unavailable','Reconnect source/destination roots')
@@ -303,7 +304,7 @@ class Planner:
                     done = Operation.model_validate(data)
                     try:
                         if signature(Path(done.destination))!=done.verification['final_signature'] or Filesystem().hash(done.destination)!=done.verification['sha256']:
-                            issue('target_changed','Completed media changed before optional output retry')
+                            issue('target_changed','Completed media changed before retry')
                     except (OSError,ValueError):issue('target_changed','Completed media is unavailable')
             if op.item_id not in checked_items:
                 current_item = self.library.get(op.item_id)

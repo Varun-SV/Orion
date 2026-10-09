@@ -25,7 +25,7 @@ export function PlanPreview({ plan }: { plan: Plan }) {
       )}
       {!!plan.warnings?.length && (
         <div className="notice">
-          <strong>Optional output notes</strong>
+          <strong>Preview notes</strong>
           {plan.warnings.map((warning, i) => (
             <p key={i}>{warning.detail}</p>
           ))}

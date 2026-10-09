@@ -68,10 +68,10 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
       const metadata = {
         ...item.metadata,
         ...(choice?.metadata ?? item.decision?.metadata ?? {}),
-        ...Object.fromEntries(Object.entries(fields).filter(([, v]) => v)),
+        ...fields,
         title: name.trim(),
         year,
-        ...(filename ? { filename } : {}),
+        filename,
       };
       delete (metadata as Record<string, unknown>).candidates;
       await api(

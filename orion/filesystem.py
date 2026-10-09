@@ -65,6 +65,7 @@ class Filesystem:
                 copied += len(block)
                 checkpoint(copied,digest.hexdigest(),signature(Path(temp)))
         shutil.copystat(source,temp,follow_symlinks=False)
+        checkpoint(copied,digest.hexdigest(),signature(Path(temp)))
         self.sync_directory(Path(temp).parent)
         return copied,digest.hexdigest()
 

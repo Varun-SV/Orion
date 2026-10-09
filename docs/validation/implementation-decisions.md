@@ -12,4 +12,9 @@
 - Release tags use a narrower read-only reusable validation workflow. Required jobs are duplicated with policy-enforced equality because GitHub reusable permission ceilings apply even to skipped deployment jobs. Cost: updates must satisfy the drift test.
 - Legacy activity imports action/status/timestamp and a summary, keeping free-form details in original tables/backups to prevent old credential-bearing errors appearing in the browser. Cost: detailed legacy incident investigation reads the backup.
 
-Final independent review and any deferred minor findings will be appended here after review.
+- Persistent media identity now follows the indexed source-scoped current path. A real new arrival at a retired path receives a fresh stored UUID; existing journal references remain unchanged. Cost: initial deterministic IDs are not reused for later arrivals.
+- Conflict skipping applies to the entire media item and its companions. It creates no sidecars beside an unrelated existing destination. Cost: users choose a separate version to organise a group with one occupied member.
+- Recovery accepts an mtime change at the copy metadata boundary only when the temporary file retains its recorded device/inode/size, complete copied digest and verified content. Partial or changed-content temporaries remain protected; copies safely restart rather than promise byte-level resumption.
+- Undo exclusions are explicit, recorded in a new immutable preview and reported as partial restoration. Split-location items retain an error/recovery note and the actual primary/remaining directory location. Cost: restoring excluded members later requires another reviewed recovery decision.
+
+One independent whole-branch review covered base `839853e47b3e851866dedd2b33a05c3ba1a1b85c` through `d4ce13d944fe53ed576530148d938e09d92e0911`. It found no Critical defects, five Important defects and two Minor UI defects. All seven were addressed in one subsequent fix pass with regression coverage. No Minor findings were deferred. See [review corrections](review-corrections.md).

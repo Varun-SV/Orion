@@ -23,6 +23,10 @@ class Library:
         with self.store.transaction() as conn:
             return self.from_row(conn.execute('SELECT * FROM orion_items WHERE id=?', (item_id,)).fetchone())
 
+    def at_path(self, source_id: str, path: str) -> MediaItem:
+        with self.store.transaction() as conn:
+            return self.from_row(conn.execute('SELECT * FROM orion_items WHERE source_id=? AND path=?', (source_id,str(path))).fetchone())
+
     def query(self, query='', kind=None, status=None, offset=0, limit=100) -> Page[MediaItem]:
         if offset < 0 or not 1 <= limit <= 500:
             raise ValueError('Invalid pagination')
@@ -75,11 +79,19 @@ class Library:
     def discovered(self,item):
         """Merge an observed signature without replacing a concurrent confirmation."""
         with self.store.transaction() as conn:
-            row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
+            row=conn.execute('SELECT * FROM orion_items WHERE source_id=? AND path=?',(item.source_id,item.path)).fetchone()
+            if row is None:
+                retired=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
+                if retired:
+                    # A path is a location, not a permanent identity. Distinguish
+                    # a real new arrival from a scan racing a completed move.
+                    from orion.discovery import signature
+                    if signature(Path(item.path)) != item.signature:
+                        raise ValueError('Observed source changed during discovery')
+                    item=item.model_copy(update={'id':str(uuid4()),'decision':None,'status':'pending'})
             if row:
                 latest=self.from_row(row)
-                if latest.path != item.path:
-                    return latest  # A completed organisation already moved this item.
+                item=item.model_copy(update={'id':latest.id})
                 if latest.signature == item.signature or not latest.signature:
                     item=item.model_copy(update={'decision':latest.decision,
                         'status':('approved' if latest.decision else 'pending') if latest.status=='unavailable' else latest.status,

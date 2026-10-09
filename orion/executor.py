@@ -17,6 +17,7 @@ class BatchResult(Record):
     completed_operation_ids: list[str] = Field(default_factory=list)
     failed_operation_ids: list[str] = Field(default_factory=list)
     pending_operation_ids: list[str] = Field(default_factory=list)
+    skipped_operation_ids: list[str] = Field(default_factory=list)
     created_sidecars_removed: list[str] = Field(default_factory=list)
 
 class RecoverySummary(Record):
@@ -65,6 +66,10 @@ class Executor:
                         except ValueError:
                             pass
                 details['item_signature'] = {**item_sig,'children':children}
+            if item_sig.get('type') == 'file':
+                primary = [done for done in completed if done.item_id==op.item_id and done.kind=='move' and done.source==details.get('item_path')]
+                if primary:
+                    details['completed_dependencies'] = [done.model_dump() for done in primary]
             if op.kind.startswith('create_') and details.get('dependencies'):
                 dependencies = [done for done in completed if done.id in details['dependencies']]
                 if len(dependencies)==len(details['dependencies']):
@@ -117,8 +122,8 @@ class Executor:
                     self._journal(op,'error',error=code)
                     if op.kind == 'move':self.library.status(op.item_id,'error')
                     failed.append(op.id)
-            state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'completed'
-            result = BatchResult(batch_id=batch_id,state=state,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
+            state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'partial' if plan.excluded_operation_ids else 'completed'
+            result = BatchResult(batch_id=batch_id,state=state,skipped_operation_ids=plan.excluded_operation_ids,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
             with self.store.transaction() as conn:
                 conn.execute('UPDATE orion_batches SET state=?,data=? WHERE id=?',(state,result.model_dump_json(),batch_id))
                 conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('organisation',json.dumps({'batch_id':batch_id,'completed':len(completed),'failed':len(failed)}),state,utcnow()))
@@ -154,7 +159,12 @@ class Executor:
             temp = destination.parent / ('.orion-' + op.id + '.part')
             if temp.exists():
                 owned = op.verification.get('temp_signature')
-                if not owned or signature(temp) != owned:
+                observed = signature(temp)
+                identity_matches = owned and all(observed.get(key)==owned.get(key) for key in ('type','device','inode','size'))
+                full_copy = identity_matches and owned.get('size')==op.expected_signature['size'] and op.verification.get('partial_sha256')==digest
+                # copystat may change mtime before its next journal checkpoint.
+                # Accept that boundary only for the same complete inode AND hash.
+                if not owned or observed != owned and not (full_copy and self.fs.hash(temp,context)==digest):
                     raise ValueError('Temporary copy changed or ownership is uncertain')
                 if owned.get('size') == op.expected_signature['size'] and self.fs.hash(temp,context) == digest:
                     self._journal(op,'verified',temp_signature=signature(temp))
@@ -304,6 +314,15 @@ class Executor:
                             Path(current).rmdir()
                         except OSError:
                             pass
+            if undo and any(op.verification.get('partial_undo') for op in group):
+                # An item split across locations must not be advertised as restored.
+                primary = next((op for op in group if op.source==item.path),None)
+                if primary and not directory:item.path=primary.destination
+                if Path(item.path).exists():item.signature=signature(Path(item.path))
+                item.metadata['recovery_note']='Some batch members were explicitly left unchanged; see operation history'
+                item.status='error'
+                self.library.upsert(item)
+                continue
             target = Path(group[0].verification['restore_item_path']) if undo else Path(group[0].verification.get('destination_item_path') or (os.path.commonpath([str(p.parent) for p in destinations]) if directory else destinations[0]))
             item.path = str(target)
             if target.exists():
@@ -311,15 +330,22 @@ class Executor:
             item.status = 'approved' if undo else 'organised'
             self.library.upsert(item)
 
-    def undo_plan(self,batch_id) -> OperationPlan:
+    def undo_plan(self,batch_id,exclude_operation_ids=None) -> OperationPlan:
         with self.store.transaction() as conn:
             row = conn.execute('SELECT plan_id FROM orion_batches WHERE id=?',(batch_id,)).fetchone()
         if not row:
             raise KeyError('Batch not found')
         originals = self.operations(row['plan_id'])
-        plan = OperationPlan(id=str(uuid4()))
+        excluded=list(dict.fromkeys(exclude_operation_ids or []))
+        eligible={op.id for op in originals if op.state=='completed' and op.kind in ('move','create_nfo','create_artwork')}
+        if not set(excluded).issubset(eligible):raise ValueError('Excluded operation is not a completed member of this batch')
+        partial_items={op.item_id for op in originals if op.id in excluded and op.kind=='move'}
+        plan = OperationPlan(id=str(uuid4()),undo_batch_id=batch_id,excluded_operation_ids=excluded)
         for op in originals:
             if op.state != 'completed': continue
+            if op.id in excluded:
+                plan.warnings.append(PlanIssue(code='undo_member_excluded',detail='Leave this file unchanged: '+op.destination,item_id=op.item_id,operation_id=op.id))
+                continue
             source,destination = Path(op.destination),Path(op.source)
             details = op.verification
             if op.kind.startswith('create_'):
@@ -334,7 +360,7 @@ class Executor:
                 continue
             if op.kind!='move':continue
             if not self._destination_matches(op):
-                plan.issues.append(PlanIssue(code='target_changed',detail='Organised file changed; retain it',item_id=op.item_id))
+                plan.issues.append(PlanIssue(code='target_changed',detail='Organised file changed; retain it: '+str(source),item_id=op.item_id,operation_id=op.id))
                 continue
             item = self.library.get(op.item_id)
             inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,source=str(source),destination=str(destination),expected_signature=details['final_signature'],
@@ -342,6 +368,10 @@ class Executor:
                                               'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['source_root_resolved'],
                                               'item_path':str(source),'item_signature':details['final_signature'],'item_decision':item.decision.model_dump() if item.decision else None,
                                               'source_directory':str(item.path) if details.get('source_directory') else '',
-                                              'undo_of':batch_id,'restore_item_path':details['item_path']})
+                                              'undo_of':batch_id,'restore_item_path':details['item_path'],'original_operation_id':op.id,'partial_undo':op.item_id in partial_items})
             plan.operations.append(inverse)
-        return self.planner.save(self.planner._validate(plan))
+        checked=self.planner._validate(plan)
+        originals_by_inverse={op.id:op.verification.get('original_operation_id',op.id) for op in checked.operations}
+        for issue in checked.issues:
+            issue.operation_id=originals_by_inverse.get(issue.operation_id,issue.operation_id)
+        return self.planner.save(checked)

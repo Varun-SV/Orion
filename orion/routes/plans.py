@@ -13,6 +13,9 @@ class PlanCreate(Record):
     item_ids: list[str] = Field(min_length=1,max_length=500)
     options: PlanOptions = Field(default_factory=PlanOptions)
 
+class UndoSelection(Record):
+    exclude_operation_ids: list[str] = Field(default_factory=list,max_length=5000)
+
 class PlanRef(Record):
     revision: int = Field(ge=1)
 
@@ -53,5 +56,5 @@ def batches(runtime:Runtime):
         return [{**dict(r),'data':json.loads(r['data'])} for r in conn.execute('SELECT * FROM orion_batches ORDER BY created_at DESC LIMIT 100')]
 
 @router.post('/batches/{batch_id}/undo-plan',status_code=201)
-def undo(batch_id:str,runtime:Runtime):
-    return runtime.executor.undo_plan(batch_id)
+def undo(batch_id:str,runtime:Runtime,body:UndoSelection | None = None):
+    return runtime.executor.undo_plan(batch_id,body.exclude_operation_ids if body else [])

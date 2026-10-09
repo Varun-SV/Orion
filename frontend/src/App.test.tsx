@@ -79,3 +79,19 @@ test('all seven collections and mobile navigation remain reachable', async () =>
   );
   expect(await screen.findByRole('heading', { name: 'Jobs' })).toBeVisible();
 });
+
+test('skip link focuses the current route without replacing it', async () => {
+  location.hash = 'sources';
+  render(<App />);
+  await screen.findByRole('heading', { name: 'Sources & destinations' });
+  await userEvent.click(screen.getByRole('link', { name: 'Skip to content' }));
+  expect(location.hash).toBe('#sources');
+  expect(screen.getByRole('main')).toHaveFocus();
+  expect(screen.getByRole('heading', { name: 'Sources & destinations' })).toBeVisible();
+});
+
+test('landmark fragment reload renders the overview', async () => {
+  location.hash = 'main';
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: /connect your sources/i })).toBeVisible();
+});

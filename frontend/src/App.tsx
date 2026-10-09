@@ -63,18 +63,35 @@ export const navigation: [string, string, Icon][] = [
 
 function Shell() {
   const { overview, settings, loading, error, refresh, saveSettings } = useWorkspace();
-  const [route, setRoute] = useState(location.hash.slice(1) || 'overview'),
+  const routeFromHash = () => {
+    const value = location.hash.slice(1);
+    return value === 'library' || navigation.some(([id]) => id === value) ? value : 'overview';
+  };
+  const [route, setRoute] = useState(routeFromHash),
     [query, setQuery] = useState(''),
     [actionError, setActionError] = useState('');
   useEffect(() => {
-    const handler = () => setRoute(location.hash.slice(1) || 'overview');
+    const handler = () => {
+      if (location.hash === '#main') {
+        document.getElementById('main')?.focus();
+        return;
+      }
+      setRoute(routeFromHash());
+    };
     addEventListener('hashchange', handler);
     return () => removeEventListener('hashchange', handler);
   }, []);
   const label = navigation.find(([id]) => id === route)?.[1] ?? 'Overview';
   return (
     <>
-      <a className="skip-link" href="#main">
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
         Skip to content
       </a>
       <aside className="sidebar">

@@ -11,6 +11,10 @@ export function Plans() {
     { data: destinations } = useResource<Destination[]>('/destinations');
   const { data: profiles } = useResource<NamingProfile[]>('/profiles');
   const [profileId, setProfileId] = useState('');
+  const [exclusions, setExclusions] = useState<{ planId: string; ids: string[] }>({
+    planId: '',
+    ids: [],
+  });
   const [destination, setDestination] = useState(settings?.default_destination ?? ''),
     [inPlace, setInPlace] = useState(false),
     [conflict, setConflict] = useState('block'),
@@ -71,6 +75,25 @@ export function Plans() {
       setConfirmed(false);
     });
   }
+  async function excludeConflicts() {
+    if (!currentPlan?.undo_batch_id || exclusions.planId !== currentPlan.id) return;
+    await action(async () => {
+      setCurrentPlan(
+        await api<Plan>(
+          '/batches/' + currentPlan.undo_batch_id + '/undo-plan',
+          json('POST', {
+            exclude_operation_ids: [
+              ...new Set([...(currentPlan.excluded_operation_ids ?? []), ...exclusions.ids]),
+            ],
+          }),
+        ),
+      );
+      setValidated('');
+      setConfirmed(false);
+      setExclusions({ planId: '', ids: [] });
+      refresh();
+    });
+  }
   async function execute() {
     if (!currentPlan) return;
     await action(async () => {
@@ -126,7 +149,7 @@ export function Plans() {
               When a path already exists
               <select value={conflict} onChange={(e) => setConflict(e.target.value)}>
                 <option value="block">Stop for review</option>
-                <option value="skip">Skip conflicting members</option>
+                <option value="skip">Skip conflicting items and their companions</option>
                 <option value="keep_both">Keep separate versions</option>
               </select>
             </label>
@@ -157,6 +180,50 @@ export function Plans() {
       {currentPlan && (
         <section className="panel plan-detail">
           <PlanPreview plan={currentPlan} />
+          {currentPlan.undo_batch_id && currentPlan.issues.some((issue) => issue.operation_id) && (
+            <section>
+              <h3>Undo exclusions</h3>
+              <p className="notice">
+                Choose members to leave unchanged. This creates a new preview for the remaining
+                files; review and revalidate it before restoring them.
+              </p>
+              {currentPlan.issues
+                .filter(
+                  (issue, index, all) =>
+                    issue.operation_id &&
+                    all.findIndex((other) => other.operation_id === issue.operation_id) === index,
+                )
+                .map((issue) => (
+                  <label className="check-field" key={issue.operation_id}>
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={
+                        exclusions.planId === currentPlan.id &&
+                        exclusions.ids.includes(issue.operation_id)
+                      }
+                      onChange={(event) => {
+                        const ids = exclusions.planId === currentPlan.id ? exclusions.ids : [];
+                        setExclusions({
+                          planId: currentPlan.id,
+                          ids: event.target.checked
+                            ? [...ids, issue.operation_id]
+                            : ids.filter((id) => id !== issue.operation_id),
+                        });
+                      }}
+                    />
+                    Leave conflicted member unchanged: {issue.detail}
+                  </label>
+                ))}
+              <button
+                className="secondary"
+                disabled={busy || exclusions.planId !== currentPlan.id || !exclusions.ids.length}
+                onClick={() => void excludeConflicts()}
+              >
+                Preview undo with exclusions
+              </button>
+            </section>
+          )}
           <p className="notice">
             Revalidate to check current files, free space and destination access. Changed conditions
             require a new preview.

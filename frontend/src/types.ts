@@ -100,6 +100,8 @@ export interface Issue {
   item_id: string;
 }
 export interface Plan {
+  undo_batch_id?: string | null;
+  excluded_operation_ids?: string[];
   id: string;
   revision: number;
   operations: Operation[];

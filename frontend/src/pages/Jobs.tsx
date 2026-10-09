@@ -81,7 +81,11 @@ export function Jobs() {
             <div className="section-head">
               <h2>{job.kind.replaceAll('_', ' ')}</h2>
               <span className={'state state-' + job.state} role="status">
-                {job.state === 'completed' ? 'Operation complete' : job.state}
+                {job.result?.state === 'partial'
+                  ? 'Partial restoration or organisation'
+                  : job.state === 'completed'
+                    ? 'Operation complete'
+                    : job.state}
               </span>
             </div>
             <p className="job-id">{job.id}</p>
@@ -105,6 +109,9 @@ export function Jobs() {
             {Array.isArray(job.result?.completed_operation_ids) && (
               <p className="result-summary">
                 {completed} completed · {failed} failed · {pending} pending
+                {Array.isArray(job.result?.skipped_operation_ids) &&
+                  job.result.skipped_operation_ids.length > 0 &&
+                  ` · ${job.result.skipped_operation_ids.length} explicitly left unchanged`}
               </p>
             )}
             {job.error && <p className="job-error">{job.error}</p>}

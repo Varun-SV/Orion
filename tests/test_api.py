@@ -241,3 +241,29 @@ def test_browser_cookies_do_not_collide_between_isolated_instances(tmp_path):
         second.get('/api/v1/session')
         first.cookies.update(second.cookies)  # Browsers share host cookies across ports.
         assert first.put('/api/v1/settings',json={'theme':'night'},headers={'X-Orion-CSRF':token}).status_code==200
+
+def test_undo_api_accepts_explicit_member_exclusion_and_keeps_first_preview_immutable(client,tmp_path):
+    from tests_support import make_plan
+    from conftest import QuietContext
+    runtime=client.app.state.services
+    planner,plan,source,target=make_plan(runtime.library,tmp_path,QuietContext(),directory=True)
+    result=runtime.executor.execute(plan.id,1,QuietContext())
+    target.write_bytes(b'edited movie')
+    url='/api/v1/batches/'+result.batch_id+'/undo-plan'
+    blocked=client.post(url).json()
+    primary=next(op for op in plan.operations if op.source==str(source))
+    assert blocked['issues'][0]['operation_id']==primary.id
+    selected=client.post(url,json={'exclude_operation_ids':[primary.id]})
+    assert selected.status_code==201
+    undo=selected.json()
+    assert not undo['issues'] and undo['excluded_operation_ids']==[primary.id]
+    assert client.get('/api/v1/plans/'+blocked['id']).json()['issues']
+    assert client.post(url,json={'exclude_operation_ids':['not-in-this-batch']}).status_code==400
+    assert client.post(url,json={'unknown':True}).status_code==422
+    job=client.post('/api/v1/plans/'+undo['id']+'/execute',json={'revision':1})
+    assert job.status_code==202
+    final=wait_job(client,job.json()['id'])
+    assert final['result']['state']=='partial'
+    assert final['result']['skipped_operation_ids']==[primary.id]
+    assert target.read_bytes()==b'edited movie'
+    assert source.with_name('original.en.srt').read_bytes()==b'subtitle'

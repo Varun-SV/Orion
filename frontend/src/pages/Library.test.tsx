@@ -209,3 +209,35 @@ test('reconfirming retains provider identity and metadata needed for sidecars', 
     }),
   );
 });
+
+test('clearing manual fields and filename persists empty edits while retaining untouched metadata', async () => {
+  const item = makeItem('Track', 'music', 'approved');
+  item.decision = {
+    item_id: item.id,
+    provider: 'musicbrainz',
+    provider_id: 'recording',
+    metadata: {
+      title: 'Track',
+      artist: 'Artist',
+      album: 'Album',
+      track_number: '3',
+      filename: 'old.flac',
+      release_mbid: 'release',
+    },
+    evidence: ['Matched'],
+  };
+  const requests = mockApi([item]);
+  location.hash = 'music';
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Review Track' }));
+  await userEvent.clear(screen.getByRole('textbox', { name: 'Artist' }));
+  await userEvent.clear(screen.getByRole('textbox', { name: /Exact filename override/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm match' }));
+  await waitFor(() =>
+    expect(
+      requests.find((r) => r.method === 'PUT' && r.path.endsWith('/decision'))?.body,
+    ).toMatchObject({
+      metadata: { artist: '', filename: '', album: 'Album', release_mbid: 'release' },
+    }),
+  );
+});

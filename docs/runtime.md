@@ -15,3 +15,8 @@ Build the interface with `npm --prefix frontend ci` and `npm --prefix frontend r
 The UI and `/api/v1` share one origin. The client obtains an HttpOnly SameSite cookie and CSRF token from `/api/v1/session`, then supplies `X-Orion-CSRF` on mutations. Cross-origin requests and non-loopback Host headers are rejected. This is a local desktop runtime; public network hosting is unsupported.
 
 Scan jobs discover files; lookup jobs return provider candidates; PUT item decisions confirms metadata without moving files. POST plans creates a persisted preview, revalidation checks its exact revision, and execution queues the single writer. Jobs/progress survive reloads, stopped jobs can retry, and batches produce guarded inverse plans. Startup interruption reconciliation runs as a cancellable writer job, without delaying the dashboard. Source removal pauses scanning while preserving item and recovery history. Credential replacement is write-only and secure storage failure requires an explicit session-only choice.
+
+
+## Partially restoring a batch
+
+If an organised file changed or its original path is occupied, the undo preview keeps it protected. In Plans, explicitly select “Leave conflicted member unchanged” and create a new preview with exclusions. Revalidate and approve that preview to restore its safe members. The old preview remains immutable, the result lists skipped members as partial restoration, and split-location items remain marked for recovery in operation history. Conflict skipping during organisation leaves the whole item and its companions at the source; it never attaches incoming metadata to an existing unrelated destination.

@@ -193,3 +193,50 @@ test('confirmed selected items produce preview without executing file changes', 
   });
   expect(requests.some((r) => r.path.endsWith('/execute'))).toBe(false);
 });
+
+test('undo conflict exclusion creates a new preview and resets execution approval', async () => {
+  const blocked: Plan = {
+    ...plan,
+    id: 'blocked',
+    undo_batch_id: 'batch',
+    issues: [
+      {
+        code: 'target_changed',
+        detail: 'Edited movie',
+        operation_id: 'original-movie',
+        item_id: 'Arrival',
+      },
+    ],
+  };
+  const partial: Plan = {
+    ...plan,
+    id: 'partial-undo',
+    undo_batch_id: 'batch',
+    excluded_operation_ids: ['original-movie'],
+    warnings: [
+      {
+        code: 'undo_member_excluded',
+        detail: 'Leave edited movie unchanged',
+        operation_id: 'original-movie',
+        item_id: 'Arrival',
+      },
+    ],
+  };
+  const requests = mockApi([], {
+    '/plans': [blocked],
+    '/plans/blocked': blocked,
+    'POST /batches/batch/undo-plan': partial,
+  });
+  location.hash = 'plans';
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Open plan blocked' }));
+  await userEvent.click(
+    screen.getByRole('checkbox', { name: /Leave conflicted member unchanged/ }),
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Preview undo with exclusions' }));
+  expect(await screen.findByText('Leave edited movie unchanged')).toBeVisible();
+  expect(requests.find((r) => r.path === '/batches/batch/undo-plan')?.body).toEqual({
+    exclude_operation_ids: ['original-movie'],
+  });
+  expect(screen.getByRole('button', { name: 'Organise' })).toBeDisabled();
+});
