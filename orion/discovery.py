@@ -119,6 +119,11 @@ class Discovery:
             if sid not in sources:
                 raise KeyError('Source not found')
             source = sources[sid]
+            with self.library.store.transaction() as conn:
+                archived=conn.execute('SELECT value FROM orion_settings WHERE key=?',('source_archived_'+sid,)).fetchone()
+            if archived and archived[0]=='true':
+                report.skipped.append('Paused source: '+sid)
+                continue
             root = Path(source['path'])
             if not root.is_dir() or any(linked(parent) for parent in (root,*root.parents)):
                 report.unavailable_sources.append(sid)

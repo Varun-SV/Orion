@@ -138,6 +138,15 @@ def test_explicit_undo_exclusion_restores_safe_members(library,tmp_path,context,
     blocked=executor.undo_plan(result.batch_id)
     assert blocked.issues
     undo=executor.undo_plan(result.batch_id,exclude_operation_ids=[primary.id])
+    if conflict=='occupied':
+        # A new directory arrival owns the whole restore location, even when
+        # its conflicting media operation has been explicitly excluded.
+        assert any(issue.code=='restore_directory_populated' for issue in undo.issues)
+        with pytest.raises(ValueError):executor.execute(undo.id,1,context)
+        assert source.read_bytes()==b'new original occupant'
+        assert target.read_bytes()==b'original media bytes'
+        assert not source.with_name('original.en.srt').exists()
+        return
     assert not undo.issues and len(undo.operations)==1
     assert undo.excluded_operation_ids==[primary.id]
     assert any(w.operation_id==primary.id for w in undo.warnings)

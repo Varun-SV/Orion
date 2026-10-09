@@ -103,18 +103,31 @@ class Library:
                 (item.id,item.source_id,item.path,item.kind,item.status,json.dumps(item.signature),json.dumps(safe_metadata(item.metadata)),item.decision.model_dump_json() if item.decision else None,utcnow()))
         return item
 
+    def _ensure_decision_editable(self,conn,item_id):
+        active=conn.execute("SELECT kind,payload FROM orion_jobs WHERE state IN ('running','cancelling') AND kind IN ('organise','undo','sidecars','recovery')").fetchall()
+        plans={json.loads(row['payload']).get('plan_id') for row in active if row['kind']!='recovery'}
+        if any(row['kind']=='recovery' for row in active):
+            plans.update(row[0] for row in conn.execute("SELECT plan_id FROM orion_batches WHERE state='running'"))
+            plans.update(json.loads(row[0]).get('plan_id') for row in conn.execute("SELECT payload FROM orion_jobs WHERE state='interrupted' AND kind IN ('organise','undo','sidecars')"))
+        plans.discard(None)
+        for plan_id in plans:
+            if conn.execute("SELECT 1 FROM orion_operations WHERE plan_id=? AND json_extract(data,'$.item_id')=? LIMIT 1",(plan_id,item_id)).fetchone():
+                raise ValueError('This item has an active filesystem job; wait for execution to finish before changing its decision')
+
     def decide(self, item_id: str, decision: MatchDecision) -> MediaItem:
         if decision.item_id != item_id or not str(decision.metadata.get('title','')).strip():
             raise ValueError('Decision must identify this item and supply a title')
         decision = decision.model_copy(update={'metadata':safe_metadata(decision.metadata)})
         with self.store.transaction() as conn:
+            self._ensure_decision_editable(conn,item_id)
             changed=conn.execute("UPDATE orion_items SET decision=?,status=CASE WHEN status='organised' THEN status ELSE 'approved' END,updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
         return self.get(item_id)
 
     def clear_decision(self,item_id):
         with self.store.transaction() as conn:
-            changed=conn.execute("UPDATE orion_items SET decision=NULL,status='pending',updated_at=? WHERE id=?",(utcnow(),item_id)).rowcount
+            self._ensure_decision_editable(conn,item_id)
+            changed=conn.execute("UPDATE orion_items SET decision=NULL,status=CASE WHEN status='organised' THEN status ELSE 'pending' END,updated_at=? WHERE id=?",(utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
         return self.get(item_id)
 

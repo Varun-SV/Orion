@@ -151,6 +151,12 @@ class JobManager:
                 raise ValueError('Only stopped jobs can be retried')
             with self.store.transaction() as conn:
                 payload = json.loads(conn.execute('SELECT payload FROM orion_jobs WHERE id=?',(job_id,)).fetchone()[0])
+                source_ids=payload.get('source_ids',[]) if job.kind=='scan' else [payload['source_id']] if job.kind=='watch_scan' and payload.get('source_id') else []
+                for sid in source_ids:
+                    source=conn.execute('SELECT watch FROM orion_sources WHERE id=?',(sid,)).fetchone()
+                    archived=conn.execute('SELECT value FROM orion_settings WHERE key=?',('source_archived_'+sid,)).fetchone()
+                    if not source or archived and archived[0]=='true' or job.kind=='watch_scan' and not source['watch']:
+                        raise ValueError('Select active sources; resume the paused source before retrying its scan')
                 conn.execute("UPDATE orion_jobs SET state='queued',cancel=0,result=NULL,error=NULL,progress='{}',updated_at=? WHERE id=?",(utcnow(),job_id))
             self._schedule(job_id,job.kind,payload)
         return self.get(job_id)

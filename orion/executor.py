@@ -8,8 +8,8 @@ from pydantic import Field
 from orion.models import Record,Operation,OperationPlan,PlanIssue
 from orion.discovery import signature,Cancelled,VIDEO
 from orion.filesystem import Filesystem
-from orion.planner import contained
-from orion.store import utcnow
+from orion.planner import contained,case_only_rename,exact_name_exists
+from orion.store import utcnow,normalized
 
 class BatchResult(Record):
     batch_id: str
@@ -57,6 +57,10 @@ class Executor:
             if original.state == 'completed': continue
             op = original.model_copy(deep=True)
             details = op.verification
+            if op.state=='staged' and details.get('mode')=='case_rename':
+                op.source = details['temp_path']
+                details['item_path'] = op.source
+                details['item_signature'] = op.expected_signature
             item_sig = details.get('item_signature',{})
             if item_sig.get('type') == 'directory':
                 children = dict(item_sig['children'])
@@ -94,6 +98,8 @@ class Executor:
                     raise ValueError('Undo preview is stale; create a new preview for this batch')
             self.reconcile(plan_id,context)
             operations = self.operations(plan_id)
+            if plan.undo_batch_id and self._restore_conflicts(plan,operations):
+                raise ValueError('Undo restore conflict: the original location contains unexpected files or another indexed item')
             # A known finalised destination is handled below, not by a fresh
             # preview that would mistake our own published file for a collision.
             regular = [op for op in operations if op.state not in ('completed','finalised')]
@@ -146,6 +152,8 @@ class Executor:
     def _safe_roots(self,op):
         details = op.verification
         for path_key,root_key,resolved_key in [('source','source_root','source_root_resolved'),('destination','destination_root','destination_root_resolved')]:
+            if path_key=='source' and op.kind.startswith('create_'):
+                continue
             root = Path(details[root_key])
             if str(root.resolve()) != details[resolved_key] or not contained(Path(getattr(op,path_key)),root):
                 raise ValueError('Selected path escaped its recorded root')
@@ -153,15 +161,27 @@ class Executor:
     def _move(self,op,context,index,total):
         source,destination = Path(op.source),Path(op.destination)
         self._safe_roots(op)
+        if op.state=='staged' and op.verification.get('mode')=='case_rename':
+            self._publish_case_rename(op,context,index,total)
+            return
         if signature(source) != op.expected_signature:
             raise ValueError('Source changed')
         digest = self.fs.hash(source,context)
         if signature(source) != op.expected_signature:
             raise ValueError('Source changed during verification')
-        mode = 'rename' if self.fs.same_volume(source,destination) else 'copy'
-        self._journal(op,'intent',sha256=digest,mode=mode,error=None)
+        mode = 'case_rename' if case_only_rename(source,destination) else 'rename' if self.fs.same_volume(source,destination) else 'copy'
+        temp = source.parent / ('.orion-' + op.id + '.part') if mode=='case_rename' else None
+        self._journal(op,'intent',sha256=digest,mode=mode,error=None,**({'temp_path':str(temp)} if temp else {}))
         destination.parent.mkdir(parents=True,exist_ok=True)
         self._safe_roots(op)
+        if mode == 'case_rename':
+            if context.cancelled():raise Cancelled()
+            if signature(source) != op.expected_signature:
+                raise ValueError('Source changed before case rename')
+            self.fs.rename_noreplace(source,temp)
+            self._journal(op,'staged',temp_signature=signature(temp))
+            self._publish_case_rename(op,context,index,total)
+            return
         if mode == 'rename':
             if context.cancelled(): raise Cancelled()
             if signature(source) != op.expected_signature:
@@ -205,6 +225,18 @@ class Executor:
             self._journal(op,'finalised',final_signature=signature(destination))
         self._finish(op,context,index,total)
         context.progress('Organising',index+1,total,int(op.expected_signature['size']),int(op.expected_signature['size']))
+
+    def _publish_case_rename(self,op,context,index,total):
+        temp = Path(op.verification['temp_path'])
+        if temp != Path(op.source).parent / ('.orion-' + op.id + '.part') or not contained(temp,Path(op.verification['source_root'])):
+            raise ValueError('Case rename staging path escaped its recorded root')
+        self._safe_roots(op)
+        if signature(temp) != op.expected_signature or self.fs.hash(temp,context) != op.verification['sha256']:
+            raise ValueError('Staged case rename changed; retain it for review')
+        if context.cancelled():raise Cancelled()
+        self.fs.rename_noreplace(temp,Path(op.destination))
+        self._journal(op,'finalised',final_signature=signature(Path(op.destination)))
+        self._finish(op,context,index,total)
 
     def _create(self,op,context,index,total):
         from orion.integrations.sidecars import Sidecars
@@ -259,6 +291,8 @@ class Executor:
     def _destination_matches(self,op,context=None):
         destination = Path(op.destination)
         details = op.verification
+        if case_only_rename(op.source,op.destination) and not exact_name_exists(destination):
+            return False
         if not destination.is_file() or destination.is_symlink() or not details.get('sha256'):
             return False
         observed = signature(destination)
@@ -273,7 +307,12 @@ class Executor:
         if not self._destination_matches(op,context):
             raise ValueError('Published destination changed; preserve any source')
         source = Path(op.source)
-        if source.exists():
+        if op.verification.get('mode')=='case_rename':
+            # On Windows the old spelling still resolves to the published file.
+            # Never unlink that alias; an actual new old-spelling entry is retained.
+            if exact_name_exists(source):
+                raise ValueError('Source name reappeared; retain it for review')
+        elif source.exists():
             if context.cancelled(): raise Cancelled()
             if signature(source) != op.expected_signature or self.fs.hash(source,context) != op.verification['sha256']:
                 raise ValueError('Source changed; do not delete it')
@@ -298,9 +337,23 @@ class Executor:
                         report.recovered_operation_ids.append(op.id)
                     elif self._destination_matches(op,context):
                         source = Path(op.source)
-                        state = 'completed' if op.kind.startswith('create_') else 'finalised' if source.exists() else 'completed'
+                        source_exists = exact_name_exists(source) if op.verification.get('mode')=='case_rename' else source.exists()
+                        state = 'completed' if op.kind.startswith('create_') else 'finalised' if source_exists else 'completed'
                         self._journal(op,state,final_signature=signature(Path(op.destination)))
                         report.recovered_operation_ids.append(op.id)
+                    elif op.verification.get('mode')=='case_rename' and op.verification.get('temp_path'):
+                        temp = Path(op.verification['temp_path'])
+                        expected_temp = Path(op.source).parent / ('.orion-' + op.id + '.part')
+                        if temp!=expected_temp or not contained(temp,Path(op.verification['source_root'])):
+                            raise ValueError('Case rename staging path escaped its recorded root')
+                        if temp.exists() or temp.is_symlink():
+                            if signature(temp)==op.expected_signature and self.fs.hash(temp,context)==op.verification['sha256']:
+                                self._journal(op,'staged',temp_signature=signature(temp))
+                                report.recovered_operation_ids.append(op.id)
+                            else:
+                                report.review_operation_ids.append(op.id)
+                        elif exact_name_exists(Path(op.destination)) or not exact_name_exists(Path(op.source)):
+                            report.review_operation_ids.append(op.id)
                     elif Path(op.destination).exists():
                         self._journal(op,'error',error='destination_identity_uncertain')
                         report.review_operation_ids.append(op.id)
@@ -385,6 +438,46 @@ class Executor:
 
         return recovery_items
 
+    def _restore_conflicts(self,plan,operations):
+        groups={}
+        for op in operations:
+            if op.kind=='move' and op.verification.get('source_directory'):
+                groups.setdefault(op.item_id,[]).append(op)
+        issues=[]
+        for iid,group in groups.items():
+            root=Path(group[0].verification['restore_item_path'])
+            item=self.library.get(iid)
+            with self.store.transaction() as conn:
+                occupied=any(row['id']!=iid and normalized(row['path'])==normalized(root)
+                    for row in conn.execute('SELECT id,path FROM orion_items WHERE source_id=?',(item.source_id,)))
+                rows=conn.execute("SELECT data FROM orion_operations WHERE json_extract(data,'$.verification.undo_of')=? AND json_extract(data,'$.state')='completed' AND json_extract(data,'$.kind')='move'",(plan.undo_batch_id,)).fetchall()
+            if occupied:
+                issues.append(PlanIssue(code='restore_item_conflict',detail='Another indexed arrival occupies the original directory: '+str(root),item_id=iid,operation_id=group[0].id))
+                continue
+            if not root.exists():continue
+            owned=set()
+            for row in rows:
+                done=Operation.model_validate_json(row['data'])
+                destination=Path(done.destination)
+                if done.item_id==iid and destination.is_relative_to(root):
+                    try:
+                        self._safe_roots(done)
+                        if self._destination_matches(done):
+                            owned.add(normalized(destination))
+                            owned.update(normalized(parent) for parent in destination.parents if parent.is_relative_to(root))
+                    except (OSError,ValueError):pass
+            unexpected=not root.is_dir() or not contained(root,Path(group[0].verification['destination_root']))
+            if not unexpected:
+                walk_errors=[]
+                for directory,dirs,files in os.walk(root,followlinks=False,onerror=walk_errors.append):
+                    if any(normalized(Path(directory)/name) not in owned for name in [*dirs,*files]):
+                        unexpected=True
+                        break
+                unexpected=unexpected or bool(walk_errors)
+            if unexpected:
+                issues.append(PlanIssue(code='restore_directory_populated',detail='Keep the new arrival unchanged; the original directory contains unexpected members: '+str(root),item_id=iid,operation_id=group[0].id))
+        return issues
+
     def undo_plan(self,batch_id,exclude_operation_ids=None) -> OperationPlan:
         with self.store.transaction() as conn:
             row = conn.execute('SELECT plan_id FROM orion_batches WHERE id=?',(batch_id,)).fetchone()
@@ -404,6 +497,9 @@ class Executor:
             source,destination = Path(op.destination),Path(op.source)
             details = op.verification
             if op.kind.startswith('create_'):
+                if op.item_id in partial_items:
+                    plan.warnings.append(PlanIssue(code='sidecar_retained_for_excluded_media',detail='Retain generated metadata for media left organised: '+str(source),item_id=op.item_id,operation_id=op.id))
+                    continue
                 if not self._destination_matches(op):
                     plan.warnings.append(PlanIssue(code='sidecar_changed',detail='Generated sidecar changed or disappeared; retain it: '+str(source),item_id=op.item_id))
                     continue
@@ -426,6 +522,7 @@ class Executor:
                                               'source_directory':str(item.path) if details.get('source_directory') else '',
                                               'undo_of':batch_id,'restore_item_path':details['item_path'],'original_operation_id':op.id,'partial_undo':op.item_id in partial_items})
             plan.operations.append(inverse)
+        plan.issues.extend(self._restore_conflicts(plan,plan.operations))
         checked=self.planner._validate(plan)
         originals_by_inverse={op.id:op.verification.get('original_operation_id',op.id) for op in checked.operations}
         for issue in checked.issues:

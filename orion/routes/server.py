@@ -48,9 +48,7 @@ def hints(item_id:str,runtime:Runtime):
     return runtime.server.submit('server_hints',{'item_id':item_id})
 @router.get('/items/{item_id}/server-hints')
 def saved_hints(item_id:str,runtime:Runtime):
-    metadata=runtime.library.get(item_id).metadata
-    if metadata.get('server_hint_revision')!=runtime.server.revision():return {'items':[],'state':'not_checked','error':None}
-    return {'items':metadata.get('server_hints',[]),'state':metadata.get('server_hint_state','not_checked'),'error':metadata.get('server_hint_error')}
+    return runtime.server.saved_hints(item_id)
 
 @router.get('/server/mapping/{series_id}')
 def saved_mapping(series_id:str,runtime:Runtime):

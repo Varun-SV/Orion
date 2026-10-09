@@ -92,8 +92,9 @@ function ProviderCard({ provider: p }: { provider: Provider }) {
             Use for this session only
           </label>
           <p className="notice">
-            Session-only keys disappear when the engine stops. Clear key removes the saved
-            credential from the selected storage.
+            The session-only checkbox applies to replacements. Clear key removes the current
+            credential from {p.storage === 'session' ? 'this engine session' : 'the OS keychain'}.
+            Session-only keys disappear when the engine stops.
           </p>
           <div className="actions">
             <button className="secondary" type="submit" disabled={busy || !key.trim()}>
@@ -109,7 +110,7 @@ function ProviderCard({ provider: p }: { provider: Provider }) {
                   try {
                     await api(
                       '/providers/' + p.id + '/credentials',
-                      json('POST', { key: '', session_only: sessionOnly }),
+                      json('POST', { key: '', session_only: p.storage === 'session' }),
                     );
                     setKey('');
                     refresh();

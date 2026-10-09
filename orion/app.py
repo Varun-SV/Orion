@@ -26,6 +26,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         cfg = Config(data_dir)
         store = Store(cfg.db_path)
         backup = store.migrate()
+        cfg.import_preferences(store)
         library = Library(store)
         planner = Planner(library)
         runtime = Services(cfg,store,library,Discovery(library),Providers(cfg,store=store),planner,Executor(library,planner))

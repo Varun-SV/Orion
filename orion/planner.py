@@ -40,6 +40,31 @@ def contained(path,root):
         cursor = cursor.parent
     return True
 
+def case_only_rename(source,destination):
+    source,destination = Path(source),Path(destination)
+    return (os.name == 'nt' and str(source.parent) == str(destination.parent)
+            and str(source) != str(destination) and normalized(source) == normalized(destination))
+
+
+def exact_name_exists(path):
+    path = Path(path)
+    try:
+        with os.scandir(path.parent) as entries:
+            return any(entry.name == path.name for entry in entries)
+    except FileNotFoundError:
+        return False
+
+
+def move_destination_exists(source,destination):
+    source,destination = Path(source),Path(destination)
+    if not destination.exists() and not destination.is_symlink():
+        return False
+    # Only the source's alternate spelling is exempt. A distinct case-sensitive
+    # entry or an unrelated path alias still occupies the requested destination.
+    return not (case_only_rename(source,destination) and not exact_name_exists(destination)
+                and not linked(destination) and source.samefile(destination))
+
+
 class Planner:
     def __init__(self,library):
         self.library = library
@@ -70,11 +95,14 @@ class Planner:
         sources = {r['id']:r for r in self.library.sources()}
         with self.store.transaction() as conn:
             destinations = {r['id']:dict(r) for r in conn.execute('SELECT * FROM orion_destinations')}
-            categories = {r['kind']:dict(r) for r in conn.execute('SELECT * FROM orion_categories')}
+            categories = {}
+            for row in conn.execute('SELECT * FROM orion_categories ORDER BY rowid'):
+                categories.setdefault(row['kind'],dict(row))
         if not options.in_place and options.destination_id not in destinations:
             raise ValueError('Select a configured destination')
         reserved = set()
         reserved_folders = set()
+        catalogue_cache = {}
         def issue(code,detail,item_id='',operation_id=''):
             plan.issues.append(PlanIssue(code=code,detail=detail,item_id=item_id,operation_id=operation_id))
         for iid in dict.fromkeys(item_ids):
@@ -120,11 +148,11 @@ class Planner:
             except (ValueError,OSError) as exc:
                 issue('invalid_layout',str(exc),iid)
                 continue
-            if options.conflict == 'skip' and (not pairs or any(normalized(src)!=normalized(dst) and (dst.exists() or normalized(dst) in reserved) for src,dst,_ in pairs)):
+            if options.conflict == 'skip' and (not pairs or any(str(src)!=str(dst) and (move_destination_exists(src,dst) or normalized(dst) in reserved) for src,dst,_ in pairs)):
                 plan.warnings.append(PlanIssue(code='item_skipped',detail='Keep this incoming item and all companions: its destination is occupied',item_id=iid))
                 continue
             for src,dst,expected in pairs:
-                if normalized(src) == normalized(dst):
+                if str(src) == str(dst):
                     continue
                 operation = Operation(id=str(uuid4()),plan_id=plan.id,item_id=iid,source=str(src),destination=str(dst),expected_signature=expected,
                                       verification={'source_root':str(source_root),'destination_root':str(destination_root),
@@ -135,7 +163,7 @@ class Planner:
                     issue('duplicate_destination','Two operations target the same path',iid,operation.id)
                 reserved.add(normalized(dst))
                 plan.operations.append(operation)
-            self._sidecars(plan,item,item_options,base,item_target,pairs,source_root,destination_root,reserved)
+            self._sidecars(plan,item,item_options,base,item_target,pairs,source_root,destination_root,reserved,catalogue_cache)
         checked = self._validate(plan)
         return self.save(checked)
 
@@ -152,7 +180,7 @@ class Planner:
                 return [(source,candidate,item.signature), *[(p,candidate.with_name(candidate.stem+p.name[len(source.stem):]),signature(p)) for p in companions]]
             pairs = members(target)
             if options.conflict == 'keep_both':
-                while any(normalized(src)!=normalized(dst) and (dst.exists() or normalized(dst) in (reserved or set())) for src,dst,_ in pairs):
+                while any(str(src)!=str(dst) and (move_destination_exists(src,dst) or normalized(dst) in (reserved or set())) for src,dst,_ in pairs):
                     target = original.with_name(f'{original.stem} ({version}){original.suffix}')
                     version += 1
                     pairs = members(target)
@@ -202,7 +230,7 @@ class Planner:
             result.append((file,target,expected))
         return result,folder_target
 
-    def _sidecars(self,plan,item,options,base,item_target,pairs,source_root,destination_root,reserved):
+    def _sidecars(self,plan,item,options,base,item_target,pairs,source_root,destination_root,reserved,catalogue_cache):
         from orion.integrations.sidecars import Sidecars
         specs = Sidecars.plan(item,options.profile)
         rendered = Path(Naming.render(item,options.profile).path)
@@ -233,28 +261,37 @@ class Planner:
             except ValueError:
                 plan.warnings.append(PlanIssue(code='sidecar_layout',detail='This layout has no separate folder for the optional sidecar',item_id=item.id))
         if options.profile.episode_nfo_enabled and item.kind in ('series','anime','web_series'):
-            catalogue = {}
-            seasons = set()
+            unavailable = False
             for src,dst,expected in pairs:
                 if src.suffix.lower() not in VIDEO: continue
                 metadata = parsed_metadata(src,item.kind)
                 season,episode = metadata.get('season',1),metadata.get('episode',1)
-                if self.catalogue and item.decision.provider=='tmdb' and item.decision.provider_id and season not in seasons:
-                    seasons.add(season)
-                    class Context:
-                        def cancelled(self):return False
-                        def progress(self,*args):pass
-                    try:
-                        data,_,_ = self.catalogue._get(f'tv/{item.decision.provider_id}/season/{season}',Context())
-                        for row in data.get('episodes',[]):
-                            number = row.get('episode_number')
-                            if type(number) is int:
-                                catalogue[(season,number)] = {'episode_title':row.get('name',''),'plot':row.get('overview',''),'air_date':row.get('air_date',''),'episode_provider_id':str(row.get('id',''))}
-                    except Exception:
-                        plan.warnings.append(PlanIssue(code='episode_metadata_unavailable',detail='Episode catalogue unavailable; NFO uses confirmed show and filename numbers',item_id=item.id))
-                metadata.update(catalogue.get((season,episode),{}))
+                key = (item.decision.provider,item.decision.provider_id,season)
+                if key not in catalogue_cache:
+                    episodes = {}
+                    if self.catalogue and key[0]=='tmdb' and key[1]:
+                        try:
+                            cached = self.catalogue.get_cached(f'tv/{key[1]}/season/{season}')
+                            if cached:
+                                members = cached[0].get('episodes')
+                                if not isinstance(members,list) or len(members)>10000:
+                                    raise ValueError('Invalid cached episode catalogue')
+                                for row in members:
+                                    if not isinstance(row,dict) or type(row.get('episode_number')) is not int or row['episode_number']<1 or row['episode_number'] in episodes:
+                                        raise ValueError('Invalid cached episode catalogue')
+                                    episodes[row['episode_number']] = {'episode_title':row.get('name',''),'plot':row.get('overview',''),'air_date':row.get('air_date',''),'episode_provider_id':str(row.get('id') or '')}
+                        except Exception:
+                            episodes = {}
+                    catalogue_cache[key] = episodes
+                details = catalogue_cache[key].get(episode)
+                if details is None:
+                    unavailable = True
+                else:
+                    metadata.update(details)
                 spec = Sidecars.episode(item,str(dst),metadata)
                 projected.append((spec,Path(spec.path)))
+            if unavailable:
+                plan.warnings.append(PlanIssue(code='episode_metadata_unavailable',detail='Fresh cached episode metadata unavailable; NFO uses confirmed show and filename numbers. Refresh the episode catalogue before preview for provider details.',item_id=item.id))
         dependencies = [op.id for op in plan.operations if op.item_id==item.id and op.kind=='move']
         for spec,dst in projected:
             if not contained(dst,destination_root):
@@ -294,18 +331,24 @@ class Planner:
             def issue(code,detail):
                 issues.append(PlanIssue(code=code,detail=detail,item_id=op.item_id,operation_id=details.get('original_operation_id',op.id)))
             srcroot,dstroot = Path(details['source_root']),Path(details['destination_root'])
-            if not srcroot.is_dir() or not dstroot.is_dir():
+            dependencies = details.get('completed_dependencies',[])
+            source_required = not (op.kind.startswith('create_') and details.get('dependencies')
+                and {data['id'] for data in dependencies} == set(details['dependencies']))
+            if (source_required and not srcroot.is_dir()) or not dstroot.is_dir():
                 issue('destination_unavailable','Reconnect source/destination roots')
                 continue
-            if str(srcroot.resolve()) != details['source_root_resolved'] or str(dstroot.resolve()) != details['destination_root_resolved'] or not contained(src,srcroot) or not contained(dst,dstroot):
+            if (source_required and (str(srcroot.resolve()) != details['source_root_resolved'] or not contained(src,srcroot))
+                    or str(dstroot.resolve()) != details['destination_root_resolved'] or not contained(dst,dstroot)):
                 issue('outside_root','A path escaped the selected roots or became linked')
                 continue
-            dependencies = details.get('completed_dependencies',[])
             if dependencies:
                 from orion.filesystem import Filesystem
                 for data in dependencies:
                     done = Operation.model_validate(data)
                     try:
+                        done_root = Path(done.verification['destination_root'])
+                        if not done_root.is_dir() or str(done_root.resolve()) != done.verification['destination_root_resolved'] or not contained(Path(done.destination),done_root):
+                            raise ValueError('Completed media escaped its destination root')
                         if signature(Path(done.destination))!=done.verification['final_signature'] or Filesystem().hash(done.destination)!=done.verification['sha256']:
                             issue('target_changed','Completed media changed before retry')
                     except (OSError,ValueError):issue('target_changed','Completed media is unavailable')
@@ -325,7 +368,7 @@ class Planner:
                     issue('source_changed','Source file changed after preview')
             except (OSError,ValueError):
                 issue('source_unavailable','Source file is unavailable')
-            if op.kind != 'remove_created' and (dst.exists() or dst.is_symlink()):
+            if op.kind != 'remove_created' and (move_destination_exists(src,dst) if op.kind=='move' else dst.exists() or dst.is_symlink()):
                 issue('destination_exists','Keep the existing file or select a different layout')
             ancestor = nearest_existing(dst.parent)
             if not ancestor.is_dir() or not os.access(ancestor,os.W_OK):

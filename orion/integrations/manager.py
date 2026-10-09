@@ -3,9 +3,14 @@ import hashlib
 import json
 from pydantic import Field
 from orion.models import Record
+from orion.library import Library
+from orion.store import safe_metadata,utcnow
 from orion.integrations.server import MediaServerClient,ServerQuery,ServerError,server_url
 from orion.gaps import TmdbCatalogue,EpisodeGaps,ProviderMapping
 from orion.providers import ProviderError
+
+def _signature_fingerprint(signature):
+    return hashlib.sha256(json.dumps(signature,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
 
 class ServerSettings(Record):
     enabled:bool=False
@@ -50,6 +55,36 @@ class ServerIntegration:
     def submit(self,kind,payload=None):
         return self.runtime.jobs.submit(kind,{**(payload or {}),'server_revision':self.revision()})
 
+    def _publish_hints(self,item,revision,rows,state='ready',error=None):
+        updates=safe_metadata({'server_hints':rows,'server_hint_state':state,'server_hint_error':error,
+            'server_hint_revision':revision,'server_hint_signature':_signature_fingerprint(item.signature),
+            'server_hint_decision':item.decision.model_dump() if item.decision else None})
+        # Keep configuration stable while checking the current item and merging
+        # hints in the same writer transaction; other annotations remain intact.
+        with self.runtime.config._lock,self.runtime.store.transaction() as conn:
+            if revision!=self.revision():return 'server_configuration_changed'
+            row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
+            if row is None:return 'item_changed'
+            latest=Library.from_row(row)
+            if latest.signature!=item.signature or latest.decision!=item.decision:return 'item_changed'
+            metadata={**latest.metadata,**updates}
+            conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',
+                (json.dumps(metadata),utcnow(),item.id))
+        return None
+
+    def saved_hints(self,item_id):
+        with self.runtime.config._lock:
+            item=self.runtime.library.get(item_id)
+            metadata=item.metadata
+            decision=item.decision.model_dump() if item.decision else None
+            if (metadata.get('server_hint_revision')!=self.revision()
+                or metadata.get('server_hint_signature')!=_signature_fingerprint(item.signature)
+                or 'server_hint_decision' not in metadata
+                or metadata['server_hint_decision']!=decision):
+                return {'items':[],'state':'not_checked','error':None}
+            return {'items':metadata.get('server_hints',[]),'state':metadata.get('server_hint_state','not_checked'),
+                    'error':metadata.get('server_hint_error')}
+
     def run(self,kind,payload,context):
         client=self.client(payload)
         try:
@@ -74,19 +109,26 @@ class ServerIntegration:
                         evidence.append('Confirmed provider identifier agrees')
                     elif hint.name.casefold()==str(metadata.get('title','')).casefold():evidence.append('Title agrees; identity needs review')
                     rows.append({**hint.model_dump(),'evidence':evidence})
-                self.runtime.library.annotate(item.id,server_hints=rows,server_hint_state='ready',server_hint_error=None,server_hint_revision=payload['server_revision'])
+                changed=self._publish_hints(item,payload['server_revision'],rows)
+                if changed:raise ServerError(changed)
                 return {'item_id':item.id,'items':rows,'complete':True}
             if kind=='episode_gaps':
                 mapping=ProviderMapping.model_validate(payload['mapping'])
                 report=EpisodeGaps(client,self.catalogue).compare(payload['series_id'],mapping,payload.get('include_specials',False),context)
-                if report.state=='ready':
-                    with self.runtime.store.transaction() as conn:
-                        conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+self.revision()+'_'+payload['series_id'],mapping.model_dump_json()))
+                # Publish only while the submitted server identity is still current.
+                with self.runtime.config._lock:
+                    if payload['server_revision']!=self.revision():raise ServerError('server_configuration_changed')
+                    if report.state=='ready':
+                        with self.runtime.store.transaction() as conn:
+                            conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+payload['server_revision']+'_'+payload['series_id'],mapping.model_dump_json()))
                 return report
             raise ValueError('Unknown server job')
         except ProviderError as exc:
-            self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
-            if kind=='server_hints':self.runtime.library.annotate(payload['item_id'],server_hint_state='unavailable',server_hint_error=exc.code,server_hints=[],server_hint_revision=payload['server_revision'])
+            with self.runtime.config._lock:
+                if kind not in ('server_hints','episode_gaps') or (payload['server_revision']==self.revision() and exc.code not in ('item_changed','server_configuration_changed')):
+                    self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
+            if kind=='server_hints' and exc.code not in ('item_changed','server_configuration_changed'):
+                self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code)
             raise
 
     def after_local_success(self,result):

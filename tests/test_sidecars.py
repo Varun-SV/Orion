@@ -135,7 +135,7 @@ def test_series_root_and_episode_metadata_use_one_cached_season(library,tmp_path
     with library.store.transaction() as conn:conn.execute('INSERT INTO orion_destinations VALUES(?,?,?)',(did,str(destination),'Dest'))
     class Catalogue:
         calls=[]
-        def _get(self,path,ctx):
+        def get_cached(self,path):
             self.calls.append(path)
             return {'episodes':[{'episode_number':n,'name':f'Episode title {n}','overview':f'Plot {n}','air_date':'2020-01-01','id':100+n} for n in (1,2)]},True,'now'
     planner=Planner(library);planner.catalogue=Catalogue()

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Annotated,Literal
 from fastapi import APIRouter,Depends
 from pydantic import Field,SecretStr
-from orion.models import Record,Kind
+from orion.models import Record,Kind,OperationPlan
 from orion.store import item_id,normalized,is_secret
 from orion.providers import PROVIDERS,compatible_providers,ProviderError,validate_provider
 from orion.discovery import linked
@@ -92,8 +92,15 @@ def remove_destination(destination_id:str,runtime:Runtime):
     with runtime.store.transaction() as conn:
         row = conn.execute('SELECT path FROM orion_destinations WHERE id=?',(destination_id,)).fetchone()
         if not row: raise KeyError('Destination not found')
-        if conn.execute('SELECT 1 FROM orion_plans WHERE data LIKE ? LIMIT 1',('%'+str(row['path']).replace('\\','\\\\')+'%',)).fetchone():
-            raise ValueError('Destination is referenced by recovery history; keep it configured for undo.')
+        root = Path(normalized(row['path']))
+        for saved in conn.execute('SELECT data FROM orion_plans'):
+            plan = OperationPlan.model_validate_json(saved['data'])
+            for op in plan.operations:
+                roots = [op.verification.get(key) for key in ('source_root','destination_root')]
+                paths = [op.source,op.destination]
+                if (any(value and Path(normalized(value)) == root for value in roots)
+                    or any(value and Path(normalized(value)).is_relative_to(root) for value in paths)):
+                    raise ValueError('Destination is referenced by recovery history; keep it configured for undo.')
         conn.execute('DELETE FROM orion_destinations WHERE id=?',(destination_id,))
     if runtime.config.get_pref('default_destination') == destination_id:
         runtime.config.set_pref('default_destination',None)

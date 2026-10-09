@@ -34,6 +34,44 @@ class Config:
             os.replace(temp, self._prefs_path)
             self._prefs = updated
 
+    def import_preferences(self, store):
+        """Restore supported imported settings without replacing saved preferences."""
+        from orion.models import KINDS
+        from orion.providers import compatible_providers
+        with store.transaction() as conn:
+            imported = dict(conn.execute('SELECT key,value FROM orion_settings'))
+            destinations = {row[0] for row in conn.execute('SELECT id FROM orion_destinations')}
+        decoded = {}
+        for key, raw in imported.items():
+            if is_secret(key):
+                continue
+            try:
+                decoded[key] = json.loads(raw)
+            except (ValueError, TypeError):
+                decoded[key] = raw
+        candidates = {}
+        for key, choices in [('theme', ('ivory', 'clay', 'night')), ('view', ('grid', 'list'))]:
+            value = decoded.get(key)
+            if isinstance(value, str) and value in choices:
+                candidates[key] = value
+        for key in ('fingerprint_enabled', 'audd_enabled'):
+            value = decoded.get(key)
+            if isinstance(value, bool) or type(value) is int and value in (0, 1):
+                candidates[key] = bool(value)
+        providers = decoded.get('providers', {})
+        for kind in KINDS:
+            key = 'provider_' + kind
+            value = decoded.get(key, providers.get(kind) if isinstance(providers, dict) else None)
+            if isinstance(value, str) and value in compatible_providers(kind):
+                candidates[key] = value
+        destination = decoded.get('default_destination')
+        if isinstance(destination, str) and destination in destinations:
+            candidates['default_destination'] = destination
+        with self._lock:
+            for key, value in candidates.items():
+                if key not in self._prefs:
+                    self.set_pref(key, value)
+
     def get_api_key(self, service):
         if service not in self._keys:
             try:

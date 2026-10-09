@@ -30,6 +30,20 @@ class TmdbCatalogue:
         self.store,self.providers,self.clock=store,providers,clock
         self._lock=threading.Lock()
 
+    def get_cached(self,path):
+        """Read fresh catalogue data without network I/O or the fetch lock."""
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT value FROM orion_settings WHERE key=?',('catalogue_tmdb_'+path,)).fetchone()
+        if not row:
+            return None
+        try:
+            cached=json.loads(row[0])
+            if self.clock()-cached['time']>=3600 or not isinstance(cached['data'],dict) or cached['data'].get('success') is False:
+                return None
+            return cached['data'],True,cached['updated_at']
+        except (ValueError,TypeError,KeyError):
+            return None
+
     def _get(self,path,context):
         key='catalogue_tmdb_'+path
         with self._lock:
