@@ -38,7 +38,7 @@ def clean(value):
     return text or 'Untitled'
 
 def valid_relative(path):
-    if '\\' in path or ':' in path or '\x00' in path:
+    if re.search(r'[<>:"\\|?*\x00-\x1f]',path):
         raise ValueError('Use a portable relative path')
     parsed = PurePosixPath(path)
     if parsed.is_absolute() or '..' in parsed.parts or not parsed.parts:
@@ -90,4 +90,6 @@ class Naming:
             if Path(explicit).suffix.casefold() != Path(item.path).suffix.casefold():
                 raise ValueError('An explicit filename must keep the original media extension')
             result = str(PurePosixPath(result).with_name(explicit))
+        if item.signature.get('type') != 'directory' and Path(result).suffix.casefold() != Path(item.path).suffix.casefold():
+            raise ValueError('A naming template must keep the original media extension')
         return RelativeLayout(path=valid_relative(result))

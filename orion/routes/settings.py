@@ -50,7 +50,7 @@ def add_source(body:SourceCreate,runtime:Runtime):
     root = Path(body.path).absolute()
     with runtime.store.transaction() as conn:
         destinations = [Path(r[0]) for r in conn.execute('SELECT path FROM orion_destinations')]
-    if any(root.is_relative_to(d) or d.is_relative_to(root) for d in destinations):
+    if any(root.resolve().is_relative_to(d.resolve()) or d.resolve().is_relative_to(root.resolve()) for d in destinations):
         raise ValueError('Source and destination roots cannot overlap')
     return runtime.library.add_source(root,body.label,body.kind)
 
@@ -79,8 +79,8 @@ def destinations(runtime:Runtime):
 @router.post('/destinations',status_code=201)
 def add_destination(body:DestinationCreate,runtime:Runtime):
     root = Path(body.path).absolute()
-    if not root.is_dir() or linked(root): raise ValueError('Choose an accessible destination folder, not a link')
-    if any(root.is_relative_to(Path(s['path'])) or Path(s['path']).is_relative_to(root) for s in runtime.library.sources()):
+    if not root.is_dir() or any(linked(parent) for parent in (root,*root.parents)): raise ValueError('Choose an accessible destination folder, not a link')
+    if any(root.resolve().is_relative_to(Path(s['path']).resolve()) or Path(s['path']).resolve().is_relative_to(root.resolve()) for s in runtime.library.sources()):
         raise ValueError('Source and destination roots cannot overlap')
     did = item_id('destination',root)
     with runtime.store.transaction() as conn:

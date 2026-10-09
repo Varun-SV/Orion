@@ -29,6 +29,8 @@ def contained(path,root):
     path,root = Path(path).absolute(),Path(root).absolute()
     if not path.is_relative_to(root) or not path.resolve().is_relative_to(root.resolve()):
         return False
+    if any(linked(parent) for parent in (root,*root.parents)):
+        return False
     cursor = path
     while cursor != root.parent:
         if linked(cursor):
@@ -89,10 +91,10 @@ class Planner:
             source = Path(item.path)
             source_root = Path(sources[item.source_id]['path'])
             destination_root = source_root if options.in_place else Path(destinations[options.destination_id]['path'])
-            if not destination_root.is_dir() or linked(destination_root):
+            if not destination_root.is_dir() or any(linked(parent) for parent in (destination_root,*destination_root.parents)):
                 issue('destination_unavailable','Reconnect the selected destination folder',iid)
                 continue
-            if not options.in_place and any(destination_root.is_relative_to(Path(s['path'])) or Path(s['path']).is_relative_to(destination_root) for s in sources.values()):
+            if not options.in_place and any(destination_root.resolve().is_relative_to(Path(s['path']).resolve()) or Path(s['path']).resolve().is_relative_to(destination_root.resolve()) for s in sources.values()):
                 issue('roots_overlap','Source and destination roots cannot overlap',iid)
                 continue
             if not contained(source,source_root):

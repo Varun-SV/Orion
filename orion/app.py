@@ -39,7 +39,10 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         app.state.services = runtime
         app.state.backup_path = str(backup) if backup else None
         with store.transaction() as conn:
-            unfinished = conn.execute("SELECT 1 FROM orion_operations WHERE json_extract(data,'$.state') NOT IN ('pending','completed') LIMIT 1").fetchone()
+            unfinished = conn.execute("""SELECT 1 FROM orion_operations WHERE json_extract(data,'$.state') NOT IN ('pending','completed')
+                UNION ALL SELECT 1 FROM orion_batches WHERE state='running'
+                UNION ALL SELECT 1 FROM orion_jobs j JOIN orion_batches b ON json_extract(j.payload,'$.plan_id')=b.plan_id
+                    WHERE j.state='interrupted' AND j.kind IN ('organise','undo','sidecars') LIMIT 1""").fetchone()
         if unfinished:
             runtime.jobs.submit('recovery',{})
         try:

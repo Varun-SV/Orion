@@ -27,12 +27,10 @@ class Services:
             if payload.get('signature') and (item.signature != payload['signature'] or item.decision):
                 return {'item_id':item.id,'skipped':True,'reason':'item_changed'}
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
-            if self.library.get(item.id).signature != item.signature:
+            values=[r.model_dump() for r in candidates]
+            if not self.library.publish_lookup(item.id,item.signature,values):
                 raise ProviderError('item_changed',payload.get('provider') or 'lookup')
-            self.library.annotate(item.id,candidates=[r.model_dump() for r in candidates],lookup_state='ready' if candidates else 'no_match',lookup_error=None)
-            if not candidates and not self.library.get(item.id).decision:
-                self.library.status(item.id,'no_match')
-            return {'item_id':item.id,'candidates':[r.model_dump() for r in candidates]}
+            return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
             self.library.lookup_failed(item.id,item.signature,exc.code)
             raise

@@ -22,6 +22,7 @@ class BatchResult(Record):
     recovery_item_ids: list[str] = Field(default_factory=list)
 
 class RecoverySummary(Record):
+    recovered_batch_ids: list[str] = Field(default_factory=list)
     recovered_operation_ids: list[str] = Field(default_factory=list)
     review_operation_ids: list[str] = Field(default_factory=list)
 
@@ -85,6 +86,12 @@ class Executor:
             plan = self.planner.get(plan_id)
             if revision != plan.revision:
                 raise ValueError('Plan revision is stale')
+            if plan.undo_batch_id:
+                with self.store.transaction() as conn:
+                    original=conn.execute('SELECT plan_id FROM orion_batches WHERE id=?',(plan.undo_batch_id,)).fetchone()
+                states={op.id:op.state for op in self.operations(original['plan_id'])} if original else None
+                if plan.undo_operation_states is None or states!=plan.undo_operation_states:
+                    raise ValueError('Undo preview is stale; create a new preview for this batch')
             self.reconcile(plan_id,context)
             operations = self.operations(plan_id)
             # A known finalised destination is handled below, not by a fresh
@@ -123,13 +130,18 @@ class Executor:
                     self._journal(op,'error',error=code)
                     if op.kind == 'move':self.library.status(op.item_id,'error')
                     failed.append(op.id)
-            recovery_items = self._update_items_and_directories(operations)
-            state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'partial' if plan.excluded_operation_ids or recovery_items else 'completed'
-            result = BatchResult(batch_id=batch_id,state=state,recovery_item_ids=recovery_items,skipped_operation_ids=plan.excluded_operation_ids,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
-            with self.store.transaction() as conn:
-                conn.execute('UPDATE orion_batches SET state=?,data=? WHERE id=?',(state,result.model_dump_json(),batch_id))
+            return self._complete_batch(plan,operations,batch_id,completed,failed,pending,stopped)
+
+    def _complete_batch(self,plan,operations,batch_id,completed,failed,pending,stopped=False):
+        recovery_items = self._update_items_and_directories(operations)
+        state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'partial' if plan.excluded_operation_ids or recovery_items else 'completed'
+        result = BatchResult(batch_id=batch_id,state=state,recovery_item_ids=recovery_items,skipped_operation_ids=plan.excluded_operation_ids,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
+        with self.store.transaction() as conn:
+            previous=conn.execute('SELECT state,data FROM orion_batches WHERE id=?',(batch_id,)).fetchone()
+            conn.execute('UPDATE orion_batches SET state=?,data=? WHERE id=?',(state,result.model_dump_json(),batch_id))
+            if previous['state']!=state or previous['data']!=result.model_dump_json():
                 conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('undo' if plan.undo_batch_id else 'organisation',json.dumps({'batch_id':batch_id,'undo_batch_id':plan.undo_batch_id,'completed':len(completed),'failed':len(failed),'recovery_item_ids':recovery_items}),state,utcnow()))
-            return result
+        return result
 
     def _safe_roots(self,op):
         details = op.verification
@@ -294,7 +306,36 @@ class Executor:
                         report.review_operation_ids.append(op.id)
                 except (OSError,ValueError):
                     report.review_operation_ids.append(op.id)
+            if plan_id is None:
+                self._recover_completed_batches(report,context)
             return report
+
+    def _recover_completed_batches(self,report,context):
+        with self.store.transaction() as conn:
+            batches=conn.execute("""SELECT b.* FROM orion_batches b WHERE b.state='running' OR EXISTS(
+                SELECT 1 FROM orion_jobs j WHERE j.state='interrupted' AND j.kind IN ('organise','undo','sidecars')
+                AND json_extract(j.payload,'$.plan_id')=b.plan_id)""").fetchall()
+        for batch in batches:
+            if context and context.cancelled():raise Cancelled()
+            operations=self.operations(batch['plan_id'])
+            if any(op.state!='completed' for op in operations):continue
+            invalid=[]
+            for op in operations:
+                try:
+                    self._safe_roots(op)
+                    valid=not Path(op.source).exists() if op.kind=='remove_created' else self._destination_matches(op,context)
+                    if not valid:invalid.append(op.id)
+                except (OSError,ValueError):invalid.append(op.id)
+            if invalid:
+                report.review_operation_ids.extend(invalid)
+                continue
+            plan=self.planner.get(batch['plan_id'])
+            result=self._complete_batch(plan,operations,batch['id'],[op.id for op in operations],[],[])
+            with self.store.transaction() as conn:
+                conn.execute("""UPDATE orion_jobs SET state=?,result=?,error=?,cancel=0,updated_at=? WHERE state='interrupted'
+                    AND kind IN ('organise','undo','sidecars') AND json_extract(payload,'$.plan_id')=?""",
+                    ('completed' if result.state=='completed' else 'failed',result.model_dump_json(),None if result.state=='completed' else result.state,utcnow(),plan.id))
+            report.recovered_batch_ids.append(batch['id'])
 
     def _update_items_and_directories(self,operations):
         recovery_items = []
@@ -354,7 +395,7 @@ class Executor:
         eligible={op.id for op in originals if op.state=='completed' and op.kind in ('move','create_nfo','create_artwork')}
         if not set(excluded).issubset(eligible):raise ValueError('Excluded operation is not a completed member of this batch')
         partial_items={op.item_id for op in originals if op.id in excluded and op.kind=='move'}
-        plan = OperationPlan(id=str(uuid4()),undo_batch_id=batch_id,excluded_operation_ids=excluded)
+        plan = OperationPlan(id=str(uuid4()),undo_batch_id=batch_id,undo_operation_states={op.id:op.state for op in originals},excluded_operation_ids=excluded)
         for op in originals:
             if op.state != 'completed': continue
             if op.id in excluded:

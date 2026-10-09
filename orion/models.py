@@ -63,6 +63,7 @@ class OperationPlan(Record):
     id: str
     revision: int = 1
     undo_batch_id: str | None = None
+    undo_operation_states: dict[str,str] | None = None
     excluded_operation_ids: list[str] = Field(default_factory=list)
     operations: list[Operation] = Field(default_factory=list)
     issues: list[PlanIssue] = Field(default_factory=list)

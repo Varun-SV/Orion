@@ -38,7 +38,15 @@ class Duplicates:
     @staticmethod
     def _identity(item,metadata):
         decision=item.decision
-        if decision and decision.provider_id:return (item.kind,decision.provider,decision.provider_id),'Confirmed provider identifier agrees'
+        if decision and decision.provider_id:
+            identity=(item.kind,decision.provider,decision.provider_id)
+            if item.signature.get('type')!='directory' and item.kind in ('series','anime','web_series') and metadata.get('episode') not in (None,''):
+                def number(value):
+                    text=str(value).strip()
+                    return str(int(text)) if text.isdecimal() else text
+                identity+=('episode',number(metadata.get('season',1)),number(metadata['episode']))
+                return identity,'Confirmed series identifier, season and episode agree'
+            return identity,'Confirmed provider identifier agrees'
         normal=lambda value:re.sub(r'\W+',' ',str(value).casefold()).strip()
         title=normal(metadata.get('title',''))
         if not title:return None,''
