@@ -1,0 +1,18 @@
+# Orion implementation sequence
+
+Design: [approved spec and consolidated PR goals](../specs/2026-10-08-orion-modernisation-design.md).
+Replacement PR: https://github.com/Varun-SV/Orion/pull/3.
+
+1. [Engine and recovery](2026-10-08-orion-engine.md): storage/import, discovery/review, immutable plans, verified transfers/undo/recovery, persistent jobs, local API/launcher.
+2. [Connected UI](2026-10-08-orion-ui.md): approved appearance, real collections/review, plans/jobs/activity, onboarding/settings/connections, production browser QA.
+3. [Integrations and release](2026-10-08-orion-integrations-release.md): presets/comparison/watching/reports, Jellyfin/Emby/gaps, journalled sidecars, full review/CI/packaging.
+
+4. [GitHub delivery](2026-10-08-orion-github-delivery.md): required CI, Windows draft releases, main protection and the tested public Pages project site.
+
+All four plans are required for the requested scope. Each has failing-test-first tasks, exact service boundaries and acceptance checks. Engine task 6 supplies UI and integration API contracts. Integration tasks extend those contracts; corresponding frontend components/tests are included in their deliverables. No task can claim completion using prototype-only checks.
+
+Execution: the user authorised proceeding on 2026-10-09. Native implementation in this chat preserves continuity across shared engine interfaces, followed by an independent whole-branch review. Test on this PC, fix failures, then push implementation as requested. Source PRs #1 and #2 are closed without branch deletion; their intentions are traced in the spec.
+
+Self-review: covered original design and PR goals; matched shared JobContext/record signatures; assigned source identity, crash boundaries, offline sources, failed-approved visibility, global search, in-place readiness, pagination, sidecar undo and packaging tests. Further ambiguous platform/server behavior is resolved against official APIs and recorded in the execution ledger.
+
+The remote replacement PR contains the spec and plans. Implementation is now progressing in local, verified task commits; implementation pushes follow complete local validation and fixes, per the latest user instruction.

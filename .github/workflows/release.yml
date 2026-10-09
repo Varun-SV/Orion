@@ -1,0 +1,62 @@
+name: Draft Windows release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify tag version and main ancestry
+        run: |
+          VERSION=$(python -c 'from orion import __version__; print(__version__)')
+          python scripts/verify_release.py --tag "$ORION_TAG" --version "$VERSION"
+        env:
+          ORION_TAG: ${{ github.ref_name }}
+  ci:
+    needs: guard
+    uses: ./.github/workflows/validation.yml
+  package:
+    needs: [guard, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: windows-package
+          path: dist/release
+      - run: python scripts/verify_release.py --assets dist/release
+  publish:
+    needs: [ci, guard, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: windows-package
+          path: dist/release
+      - name: Create draft with verified assets
+        run: python scripts/create_draft_release.py --tag "$ORION_TAG" --assets dist/release
+        env:
+          draft: true
+          ORION_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
