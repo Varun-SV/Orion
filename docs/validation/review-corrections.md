@@ -15,3 +15,7 @@ The subsequent single fix pass addressed every finding:
 Regression evidence: the new engine suite initially reproduced 11 failures across five findings (plus a passing stale-observation guard); the four new UI cases initially failed. The partial-primary-only restoration extension also initially failed and was corrected. Final validation is recorded in [production validation](2026-10-09-connected-runtime.md).
 
 No review findings are deferred. Live authenticated providers/media servers, native macOS/Linux installers, runtime CPU/memory comparisons, and byte-level copy resumption were not promised by the approved initial delivery. Hosted CI and Pages/protection state are reported separately, without treating local tests as hosted evidence.
+
+## Hosted CI fixture correction
+
+The initial hosted run on `ba10f14325f8e2f7726445cd57cf9bf03ac774b5` passed Ubuntu Python 3.11/UI/browser/site checks, while Python 3.12 exposed an API test's temporary 50 ms SQLite busy timeout leaking into later background writer operations and teardown. The timeout override now restores the real connection factory in `finally` immediately after its nested-transaction assertion. This corrects test isolation without changing the runtime timeout or weakening its deadlock check. Hosted evidence is recorded in the delivery report.

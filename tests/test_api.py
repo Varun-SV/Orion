@@ -102,7 +102,12 @@ def test_actual_scan_review_plan_move_and_undo_flow(client,tmp_path):
         conn.execute('PRAGMA busy_timeout=50')
         return conn
     store._connection = quick_connection
-    assert client.get('/api/v1/plans').json()[0]['id']==plan['id']
+    try:
+        assert client.get('/api/v1/plans').json()[0]['id']==plan['id']
+    finally:
+        # Keep the deadlock guard local; normal background writers need the
+        # runtime's real busy timeout, especially on shared CI runners.
+        store._connection = original_connection
     assert media.read_bytes()==b'API media fixture'
     execution = client.post('/api/v1/plans/'+plan['id']+'/execute',json={'revision':1})
     assert execution.status_code==202
