@@ -13,6 +13,10 @@ class ProviderError(RuntimeError):
         self.code, self.provider = code, provider
         super().__init__(f'{provider}: {code.replace("_", " ")}')
 
+def transport_error(exc, provider):
+    code = 'credentials_rejected' if isinstance(exc,requests.HTTPError) and exc.response is not None and exc.response.status_code in (401,403) else 'provider_unavailable'
+    return ProviderError(code,provider)
+
 class RateLimiter:
     def __init__(self, intervals=None):
         self.intervals = intervals or {'musicbrainz':1.05,'anidb':2.1,'acoustid':0.35,'openlibrary':1.05,'anilist':1.0,'tmdb':0.1,'audd':1.0}
@@ -50,8 +54,9 @@ def validate_provider(kind,provider):
         raise ProviderError('provider_incompatible',provider)
 
 class Providers:
-    def __init__(self, config, request=None):
+    def __init__(self, config, request=None, store=None):
         self.config = config
+        self.store = store
         self.request = request or self._request
 
     @staticmethod
@@ -77,7 +82,10 @@ class Providers:
     def _call(self, provider, method, url, context, **kwargs):
         if context.cancelled():
             raise Cancelled()
-        return self.request(provider,method,url,context,**kwargs)
+        try:
+            return self.request(provider,method,url,context,**kwargs)
+        except requests.RequestException as exc:
+            raise transport_error(exc,provider) from None
 
     def _key(self,provider):
         key = self.config.get_api_key(provider)
@@ -102,8 +110,20 @@ class Providers:
         return Candidate(provider=provider,provider_id=str(identifier or ''),title=title,year=year,
                          metadata=safe_metadata({'title':title,'year':year,**metadata}),evidence=evidence)
 
+    def category_provider(self, kind):
+        if self.store is None:
+            return None
+        with self.store.transaction() as conn:
+            # Imported categories precede seeded defaults, so their saved choices
+            # remain the default when a legacy installation is first opened.
+            row=conn.execute('SELECT api_pref FROM orion_categories WHERE kind=? ORDER BY rowid LIMIT 1',(kind,)).fetchone()
+        return row['api_pref'] if row else None
+
+    def preferred_provider(self, kind):
+        return self.config.get_pref('provider_' + kind) or self.category_provider(kind) or ('musicbrainz' if kind=='music' else 'openlibrary' if kind=='books' else 'anilist' if kind in ('anime','anime_films') else 'tmdb')
+
     def candidates(self, item: MediaItem, context: JobContext, provider=None) -> list[Candidate]:
-        provider = provider or self.config.get_pref('provider_' + item.kind) or ('musicbrainz' if item.kind=='music' else 'openlibrary' if item.kind=='books' else 'anilist' if item.kind in ('anime','anime_films') else 'tmdb')
+        provider = provider or self.preferred_provider(item.kind)
         validate_provider(item.kind,provider)
         title = str(item.metadata.get('title',''))
         try:

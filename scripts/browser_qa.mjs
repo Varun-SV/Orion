@@ -101,7 +101,7 @@ async function navigate(route, name) {
   else
     await page
       .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name, exact: true })
+      .getByRole("button", route === "review" ? {name:/^Match review(?:\s*\d+)?$/} : {name,exact:true})
       .click();
   await expect(page.locator("h1")).toHaveText(name);
 }
@@ -159,6 +159,12 @@ try {
     await expect(page.getByRole("heading", {name:"Open Library",exact:true})).toBeVisible();
     await expect(page.getByRole("button", {name:"Save media server",exact:true})).toHaveCount(1);
     await expect(page.getByLabel("Replacement media server API key", {exact:true})).toHaveCount(1);
+  });
+  await check("Disabled media-server integration permits credential removal", async () => {
+    const clear=page.getByRole("button", {name:"Clear media server key",exact:true});
+    await expect(clear).toBeEnabled();
+    await clear.click();
+    await expect(page.getByText("Server credential cleared.",{exact:true})).toBeVisible();
   });
   await navigate("settings", "Settings");
   await check("Movies preference rejects audio upload providers", async () => {
@@ -302,6 +308,9 @@ try {
     }
   });
   await screenshot("production-jobs.png");
+  const residualDirectory=path.dirname(plan.operations.find(op=>op.kind==='move').destination);
+  const unrecordedFile=path.join(residualDirectory,"added-after-organisation.txt");
+  await fs.writeFile(unrecordedFile,"User addition must be preserved");
   await page.getByRole("button", { name: "Preview undo", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Path preview" }),
@@ -313,6 +322,22 @@ try {
   );
   await page.getByRole("button", { name: "Organise", exact: true }).click();
   const undoJob = await (await undone).json();
+  await check("Undo preserves unrecorded files and exposes both recovery locations", async()=>{
+    const partial=await terminal(undoJob.id);
+    assert.equal(partial.state,"failed");
+    assert.equal(partial.result.state,"partial");
+    assert.equal(partial.result.recovery_item_ids.length,1);
+    assert.equal(await fs.readFile(unrecordedFile,"utf8"),"User addition must be preserved");
+    await expect(page.getByText(/1 item.*files in both locations/)).toBeVisible();
+    await navigate("review","Match review");
+    await page.getByRole("button",{name:"Review Arrival",exact:true}).click();
+    await expect(page.getByText(residualDirectory,{exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Close",exact:true}).click();
+    await fs.unlink(unrecordedFile);
+    await navigate("jobs","Jobs");
+    const jobCard=page.locator("article.job-card").filter({has:page.getByText(undoJob.id,{exact:true})});
+    await jobCard.getByRole("button",{name:"Retry job",exact:true}).click();
+  });
   await check(
     "Guarded undo restores every generated fixture byte",
     async () => {
@@ -328,6 +353,12 @@ try {
         assert.equal(existsSync(op.destination), false);
     },
   );
+  await check("Undo has a distinct audit action and links its original batch", async()=>{
+    const activities=await request("/activity");
+    const undoActivity=activities.find(row=>row.action==='undo');
+    assert.ok(undoActivity);
+    assert.equal(JSON.parse(undoActivity.detail).undo_batch_id,(await terminal(job.id)).result.batch_id);
+  });
   const routes = [
     ["overview", "Overview"],
     ["review", "Match review"],

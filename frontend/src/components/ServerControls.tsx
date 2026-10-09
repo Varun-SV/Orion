@@ -216,7 +216,7 @@ export function ServerControls() {
           <button
             className="text-button"
             type="button"
-            disabled={busy || !status?.configured}
+            disabled={busy}
             onClick={() =>
               void action(
                 () => api('/server/credentials', { method: 'DELETE' }),

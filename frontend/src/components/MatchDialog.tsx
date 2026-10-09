@@ -127,6 +127,17 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
           </p>
         </div>
       </div>
+      {!!item.metadata.recovery_note && (
+        <div className="notice" role="alert">
+          <p>{text(item.metadata.recovery_note)}</p>
+          {Array.isArray(item.metadata.recovery_paths) &&
+            item.metadata.recovery_paths.map((path, index) => (
+              <p className="path-text" key={index}>
+                {text(path)}
+              </p>
+            ))}
+        </div>
+      )}
       <div className="section-head">
         <h3>Candidate evidence</h3>
         <button className="secondary" onClick={() => void identify()} disabled={busy}>

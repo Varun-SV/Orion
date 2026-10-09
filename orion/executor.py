@@ -19,6 +19,7 @@ class BatchResult(Record):
     pending_operation_ids: list[str] = Field(default_factory=list)
     skipped_operation_ids: list[str] = Field(default_factory=list)
     created_sidecars_removed: list[str] = Field(default_factory=list)
+    recovery_item_ids: list[str] = Field(default_factory=list)
 
 class RecoverySummary(Record):
     recovered_operation_ids: list[str] = Field(default_factory=list)
@@ -122,12 +123,12 @@ class Executor:
                     self._journal(op,'error',error=code)
                     if op.kind == 'move':self.library.status(op.item_id,'error')
                     failed.append(op.id)
-            state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'partial' if plan.excluded_operation_ids else 'completed'
-            result = BatchResult(batch_id=batch_id,state=state,skipped_operation_ids=plan.excluded_operation_ids,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
+            recovery_items = self._update_items_and_directories(operations)
+            state = 'cancelled' if stopped else 'partial' if completed and failed else 'failed' if failed else 'partial' if plan.excluded_operation_ids or recovery_items else 'completed'
+            result = BatchResult(batch_id=batch_id,state=state,recovery_item_ids=recovery_items,skipped_operation_ids=plan.excluded_operation_ids,completed_operation_ids=completed,failed_operation_ids=failed,pending_operation_ids=pending,created_sidecars_removed=[op.source for op in operations if op.kind=='remove_created' and op.state=='completed'])
             with self.store.transaction() as conn:
                 conn.execute('UPDATE orion_batches SET state=?,data=? WHERE id=?',(state,result.model_dump_json(),batch_id))
-                conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('organisation',json.dumps({'batch_id':batch_id,'completed':len(completed),'failed':len(failed)}),state,utcnow()))
-            self._update_items_and_directories(operations)
+                conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('undo' if plan.undo_batch_id else 'organisation',json.dumps({'batch_id':batch_id,'undo_batch_id':plan.undo_batch_id,'completed':len(completed),'failed':len(failed),'recovery_item_ids':recovery_items}),state,utcnow()))
             return result
 
     def _safe_roots(self,op):
@@ -296,6 +297,7 @@ class Executor:
             return report
 
     def _update_items_and_directories(self,operations):
+        recovery_items = []
         by_item = {}
         for op in operations:
             if op.kind != 'move':continue
@@ -303,9 +305,11 @@ class Executor:
         for iid,group in by_item.items():
             if not all(op.state=='completed' for op in group): continue
             item = self.library.get(iid)
+            organised_path = item.path
             destinations = [Path(op.destination) for op in group]
             directory = group[0].verification.get('source_directory')
             undo = group[0].verification.get('undo_of')
+            residual_directory = False
             if directory:
                 root = Path(directory)
                 if root.is_dir():
@@ -314,12 +318,17 @@ class Executor:
                             Path(current).rmdir()
                         except OSError:
                             pass
-            if undo and any(op.verification.get('partial_undo') for op in group):
+                    residual_directory = root.exists()
+            if undo and (residual_directory or any(op.verification.get('partial_undo') for op in group)):
                 # An item split across locations must not be advertised as restored.
                 primary = next((op for op in group if op.source==item.path),None)
                 if primary and not directory:item.path=primary.destination
+                if residual_directory and not any(op.verification.get('partial_undo') for op in group):
+                    item.path=group[0].verification['restore_item_path']
                 if Path(item.path).exists():item.signature=signature(Path(item.path))
-                item.metadata['recovery_note']='Some batch members were explicitly left unchanged; see operation history'
+                item.metadata['recovery_note']='Undo left files in both locations; review the recovery paths before organising again.'
+                item.metadata['recovery_paths']=list(dict.fromkeys([group[0].verification['restore_item_path'],str(directory) if directory else str(Path(organised_path).parent)]))
+                recovery_items.append(iid)
                 item.status='error'
                 self.library.upsert(item)
                 continue
@@ -327,8 +336,13 @@ class Executor:
             item.path = str(target)
             if target.exists():
                 item.signature = signature(target)
+            if undo:
+                item.metadata.pop('recovery_note',None)
+                item.metadata.pop('recovery_paths',None)
             item.status = ('approved' if item.decision else 'pending') if undo else 'organised'
             self.library.upsert(item)
+
+        return recovery_items
 
     def undo_plan(self,batch_id,exclude_operation_ids=None) -> OperationPlan:
         with self.store.transaction() as conn:

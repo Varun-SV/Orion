@@ -114,6 +114,13 @@ export function Jobs() {
                   ` · ${job.result.skipped_operation_ids.length} explicitly left unchanged`}
               </p>
             )}
+            {Array.isArray(job.result?.recovery_item_ids) &&
+              job.result.recovery_item_ids.length > 0 && (
+                <p className="notice" role="alert">
+                  {job.result.recovery_item_ids.length} item(s) have files in both locations. Review
+                  the item recovery paths before organising again.
+                </p>
+              )}
             {job.error && <p className="job-error">{job.error}</p>}
             {job.state === 'interrupted' && (
               <p className="notice">

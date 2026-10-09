@@ -59,11 +59,12 @@ class Library:
         path = Path(path).absolute()
         if kind != 'auto' and kind not in KINDS:
             raise ValueError('Unknown collection')
-        if not path.is_dir() or path.is_symlink() or getattr(path,'is_junction',lambda:False)():
+        from orion.discovery import linked
+        if not path.is_dir() or any(linked(parent) for parent in (path,*path.parents)):
             raise ValueError('Choose an accessible folder, not a link')
         for source in self.sources():
             a,b = normalized(source['path']),normalized(path)
-            if a == b or a.startswith(b + __import__('os').sep) or b.startswith(a + __import__('os').sep):
+            if Path(a).is_relative_to(Path(b)) or Path(b).is_relative_to(Path(a)):
                 raise ValueError('Source folders cannot overlap')
         sid = item_id('source', path)
         with self.store.transaction() as conn:

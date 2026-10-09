@@ -139,6 +139,8 @@ class Discovery:
                     ext = path.suffix.lower()
                     if ext not in VIDEO | AUDIO | BOOKS:
                         continue
+                    if ext in VIDEO and source['kind'] in ('music','books'):
+                        continue
                     kind = 'music' if ext in AUDIO else 'books' if ext in BOOKS else source['kind']
                     parts = path.relative_to(root).parts
                     container = False
@@ -192,6 +194,6 @@ class Discovery:
                 with self.library.store.transaction() as conn:
                     rows = conn.execute('SELECT id,path FROM orion_items WHERE source_id=?',(sid,)).fetchall()
                     for row in rows:
-                        if row['id'] not in seen and not Path(row['path']).exists():
+                        if row['id'] not in seen and Path(row['path']).absolute().is_relative_to(root.absolute()):
                             conn.execute("UPDATE orion_items SET status='unavailable' WHERE id=?",(row['id'],))
         return report

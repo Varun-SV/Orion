@@ -28,7 +28,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         backup = store.migrate()
         library = Library(store)
         planner = Planner(library)
-        runtime = Services(cfg,store,library,Discovery(library),Providers(cfg),planner,Executor(library,planner))
+        runtime = Services(cfg,store,library,Discovery(library),Providers(cfg,store=store),planner,Executor(library,planner))
         runtime.jobs = JobManager(store,runtime.handlers())
         from orion.integrations.manager import ServerIntegration
         runtime.server = ServerIntegration(runtime)

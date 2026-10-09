@@ -139,7 +139,7 @@ class JobManager:
             if event:
                 event.set()
             with self.store.transaction() as conn:
-                conn.execute("UPDATE orion_jobs SET cancel=1,state=CASE WHEN state='queued' THEN 'cancelled' ELSE 'cancelling' END,updated_at=? WHERE id=? AND state NOT IN ('completed','failed','cancelled','interrupted')",(utcnow(),job_id))
+                conn.execute("UPDATE orion_jobs SET cancel=1,state='cancelling',updated_at=? WHERE id=? AND state NOT IN ('completed','failed','cancelled','interrupted')",(utcnow(),job_id))
         return self.get(job_id)
 
     def retry(self,job_id):

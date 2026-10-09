@@ -100,7 +100,8 @@ def remove_destination(destination_id:str,runtime:Runtime):
 @router.get('/categories')
 def categories(runtime:Runtime):
     with runtime.store.transaction() as conn:
-        return [{**dict(r),'compatible_providers':compatible_providers(r['kind'])} for r in conn.execute('SELECT * FROM orion_categories ORDER BY name')]
+        rows=[dict(r) for r in conn.execute('SELECT * FROM orion_categories ORDER BY name')]
+    return [{**r,'api_pref':runtime.providers.preferred_provider(r['kind']),'compatible_providers':compatible_providers(r['kind'])} for r in rows]
 
 @router.put('/categories/{category_id}')
 def update_category(category_id:str,body:CategoryUpdate,runtime:Runtime):
@@ -119,7 +120,7 @@ def settings(runtime:Runtime):
     cfg = runtime.config
     return {'theme':cfg.get_pref('theme','ivory'),'view':cfg.get_pref('view','grid'),'fingerprint_enabled':cfg.get_pref('fingerprint_enabled',False),
             'audd_enabled':cfg.get_pref('audd_enabled',False),'default_destination':cfg.get_pref('default_destination'),
-            'providers':{k:cfg.get_pref('provider_'+k) for k in __import__('orion.models',fromlist=['KINDS']).KINDS}}
+            'providers':{k:runtime.providers.preferred_provider(k) for k in __import__('orion.models',fromlist=['KINDS']).KINDS}}
 
 def check_provider_preference(kind,provider):
     try:

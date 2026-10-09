@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+import requests
 from orion.config import Config
 from orion.store import Store
 from orion.library import Library
 from orion.discovery import Discovery
-from orion.providers import Providers,ProviderError
+from orion.providers import Providers,ProviderError,transport_error
 from orion.planner import Planner
 from orion.executor import Executor
 
@@ -58,9 +59,10 @@ class Services:
     def test_provider(self,payload,context):
         try:
             return self._test_provider(payload,context)
-        except ProviderError as exc:
-            self.config.set_pref('provider_health_'+payload['provider'],{'health':'unavailable','detail':exc.code})
-            raise
+        except (ProviderError,requests.RequestException) as exc:
+            error = exc if isinstance(exc,ProviderError) else transport_error(exc,payload['provider'])
+            self.config.set_pref('provider_health_'+payload['provider'],{'health':'unavailable','detail':error.code})
+            raise error from None
 
     def _test_provider(self,payload,context):
         provider = payload['provider']

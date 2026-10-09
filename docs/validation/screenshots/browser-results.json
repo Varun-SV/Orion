@@ -3,13 +3,16 @@
   "checks": [
     "First run and bundled fonts",
     "One media-server control panel with seven real providers",
+    "Disabled media-server integration permits credential removal",
     "Movies preference rejects audio upload providers",
     "Live configuration metrics",
     "Escape closes review and restores focus",
     "Optional sidecars default off and persist only after explicit saving",
     "Preview has real paths and changes no bytes",
     "Real job survives browser reload",
+    "Undo preserves unrecorded files and exposes both recovery locations",
     "Guarded undo restores every generated fixture byte",
+    "Undo has a distinct audit action and links its original batch",
     "overview: 1440px, no horizontal overflow",
     "review: 1440px, no horizontal overflow",
     "movies: 1440px, no horizontal overflow",
@@ -113,5 +116,5 @@
   "reload_state": "running",
   "generated_files": 64,
   "generated_bytes": 268435456,
-  "base_url": "http://127.0.0.1:55423"
+  "base_url": "http://127.0.0.1:49274"
 }

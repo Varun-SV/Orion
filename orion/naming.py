@@ -87,5 +87,7 @@ class Naming:
             explicit = str(explicit)
             if len(PurePosixPath(valid_relative(explicit)).parts) != 1 or clean(explicit) != explicit:
                 raise ValueError('An explicit filename must be one portable name')
+            if Path(explicit).suffix.casefold() != Path(item.path).suffix.casefold():
+                raise ValueError('An explicit filename must keep the original media extension')
             result = str(PurePosixPath(result).with_name(explicit))
         return RelativeLayout(path=valid_relative(result))
