@@ -54,7 +54,7 @@ Before upgrade, stop Orion and back up the **whole data directory**, including `
 
 ## Pages deployment
 
-The product site builds at `/Orion/` into `site/dist`, uses fixture-only demo data and hash/anchor routes suitable for static hosting, and never connects to the local media API. The `site` job uploads the explicitly named `github-pages` artifact using official Pages tooling only for a `push` to `refs/heads/main`. The reusable Pages workflow is called only after `CI` passes. Its deploy job repeats the main-push guard, declares environment `github-pages`, grants only `pages: write`, `id-token: write` and `contents: read`, and serializes deployments without cancelling an in-progress deployment. PR runs and release-tag validation cannot deploy.
+The public `project-site-preview` artifact contains only `site/dist` for PR review (14-day retention); downloading it does not deploy anything. The product site builds at `/Orion/` into `site/dist`, uses fixture-only demo data and hash/anchor routes suitable for static hosting, and never connects to the local media API. The `site` job uploads the explicitly named `github-pages` artifact using official Pages tooling only for a `push` to `refs/heads/main`. The reusable Pages workflow is called only after `CI` passes. Its deploy job repeats the main-push guard, declares environment `github-pages`, grants only `pages: write`, `id-token: write` and `contents: read`, and serializes deployments without cancelling an in-progress deployment. PR runs and release-tag validation cannot deploy.
 
 The configured URL is [https://varun-sv.github.io/Orion/](https://varun-sv.github.io/Orion/). Pages enablement alone is not deployment evidence. Until a main merge, successful deployment run and HTTPS/asset/interaction checks are recorded, deployment is pending. Repository Pages source must have `build_type=workflow`; the `github-pages` environment must permit deployments only from `main`.
 
@@ -96,3 +96,12 @@ Official references: [Pages workflows](https://docs.github.com/en/pages/getting-
 The local Windows x64 smoke measured **1.982 seconds** from executable launch to API readiness, **57,050,775 bytes** unpacked bundle size, and **30,207,115 bytes** for the ZIP. This is a single observed run on this PC, not a performance guarantee or a comparison against the previous app. The executable served the actual production index and 51 other bundled static files with matching bytes, created an isolated database, reused an existing instance, rejected an occupied port and exited cleanly through its packaged stop command. The smoke environment had an empty system PATH and found no Qt resources. See [package-smoke.json](validation/package-smoke.json).
 
 The ZIP SHA-256 is `4f00919b4dffbe889ce8d4ef28a716eff41c0a5762a4fea6c0dd00009c295cc4`. It exists locally under `dist/final-release`; no tag, GitHub release or published download was created for validation. CI will rebuild and verify the artifact from its exact checked-out commit.
+
+
+### Verified CI and settings activation (2026-10-09)
+
+[Hosted run 37884835064](https://github.com/Varun-SV/Orion/actions/runs/37884835064) succeeded at `3a9a197a1f8c7e678442cd04d7144deb588fced9`: every Ubuntu/Windows Python 3.11/3.12 backend job, frontend, actual-backend Chromium, Windows packaging/checksum/smoke and static-site job passed, followed by aggregate `CI`. Deployment was correctly skipped on the PR. The actual `CI` check ID was `113672925800`, GitHub Actions app ID `15368`.
+
+The complete main policy was applied and read back: strict required `CI` bound to that app, administrators enforced, PR/conversation resolution required, review count zero for the single collaborator, no force pushes/deletion. Pages read-back confirms workflow mode and HTTPS, with the deployment environment restricted to branch `main`. [Timestamped API evidence](validation/github-settings.json). Earlier interim null-status-check descriptions above are historical setup instructions; `.github/main-protection.json` now records the applied final policy.
+
+Any subsequent PR commit must independently pass its own checks. The first public Pages deployment remains pending until the user merges the PR into main; neither a successful PR check nor Pages enablement is a deployment. No tag/release or merge was performed.

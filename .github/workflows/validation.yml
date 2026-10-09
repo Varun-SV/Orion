@@ -121,6 +121,12 @@ jobs:
       - run: npm --prefix site run build
       - run: npx --prefix site playwright install --with-deps chromium
       - run: npm --prefix site test
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: project-site-preview
+          path: site/dist
+          if-no-files-found: error
+          retention-days: 14
   gate:
     name: CI
     runs-on: ubuntu-latest

@@ -1,11 +1,11 @@
 {
   "observed_at_utc": "2026-10-09T04:35:57.581061+00:00",
-  "scope": "complete reviewed local implementation; hosted exact-commit CI evidence recorded separately",
+  "scope": "complete reviewed implementation; hosted all-job success and settings activation verified",
   "full_backend_with_packaged_smoke": {
     "command": "ORION_PACKAGE_EXE=dist/Orion/Orion.exe python -m pytest -q",
-    "passed": 239,
+    "passed": 240,
     "skipped": 0,
-    "duration_seconds": 74.65
+    "duration_seconds": 74.97
   },
   "official_actionlint": {
     "version": "1.7.12",
@@ -48,11 +48,9 @@
     "checksum_validation_passed": true
   },
   "limits": [
-    "Hosted Ubuntu/Python 3.11/3.12 and Windows Actions matrix pending exact-commit runs.",
     "Native macOS/Linux installer checks unavailable.",
     "Unsigned Windows build.",
     "Live Jellyfin/Emby server checks unavailable.",
-    "Main required CI status activation awaits real successful check and observed Actions app ID.",
     "Pages live deployment awaits user-controlled main merge.",
     "No validation release/tag created."
   ],
@@ -70,5 +68,14 @@
     "minor": 2,
     "all_findings_fixed": true,
     "deferred_minor_findings": []
+  },
+  "hosted_ci_activation": {
+    "head_sha": "3a9a197a1f8c7e678442cd04d7144deb588fced9",
+    "run_id": 37884835064,
+    "run_url": "https://github.com/Varun-SV/Orion/actions/runs/37884835064",
+    "check_id": 113672925800,
+    "check_name": "CI",
+    "app_id": 15368,
+    "conclusion": "success"
   }
 }

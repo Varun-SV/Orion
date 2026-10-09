@@ -1,0 +1,94 @@
+{
+  "observed_at_utc": "2026-10-09T04:41:42.302814+00:00",
+  "successful_ci_activation_evidence": {
+    "head_sha": "3a9a197a1f8c7e678442cd04d7144deb588fced9",
+    "run_id": 37884835064,
+    "run_url": "https://github.com/Varun-SV/Orion/actions/runs/37884835064",
+    "check_id": 113672925800,
+    "check_name": "CI",
+    "app_id": 15368,
+    "conclusion": "success"
+  },
+  "main_protection": {
+    "url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection",
+    "required_status_checks": {
+      "url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection/required_status_checks",
+      "strict": true,
+      "contexts": [
+        "CI"
+      ],
+      "contexts_url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection/required_status_checks/contexts",
+      "checks": [
+        {
+          "context": "CI",
+          "app_id": 15368
+        }
+      ]
+    },
+    "required_pull_request_reviews": {
+      "url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection/required_pull_request_reviews",
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "require_last_push_approval": false,
+      "required_approving_review_count": 0
+    },
+    "required_signatures": {
+      "url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection/required_signatures",
+      "enabled": false
+    },
+    "enforce_admins": {
+      "url": "https://api.github.com/repos/Varun-SV/Orion/branches/main/protection/enforce_admins",
+      "enabled": true
+    },
+    "required_linear_history": {
+      "enabled": false
+    },
+    "allow_force_pushes": {
+      "enabled": false
+    },
+    "allow_deletions": {
+      "enabled": false
+    },
+    "block_creations": {
+      "enabled": false
+    },
+    "required_conversation_resolution": {
+      "enabled": true
+    },
+    "lock_branch": {
+      "enabled": false
+    },
+    "allow_fork_syncing": {
+      "enabled": false
+    }
+  },
+  "pages": {
+    "url": "https://api.github.com/repos/Varun-SV/Orion/pages",
+    "status": null,
+    "cname": null,
+    "custom_404": false,
+    "html_url": "https://varun-sv.github.io/Orion/",
+    "build_type": "workflow",
+    "source": {
+      "branch": "main",
+      "path": "/"
+    },
+    "public": true,
+    "protected_domain_state": null,
+    "pending_domain_unverified_at": null,
+    "https_enforced": true
+  },
+  "pages_environment_branch_policy": {
+    "protected_branches": false,
+    "custom_branch_policies": true
+  },
+  "pages_allowed_branches": [
+    {
+      "id": 62404435,
+      "node_id": "MDE2OkdhdGVCcmFuY2hQb2xpY3k2MjQwNDQzNQ==",
+      "name": "main",
+      "type": "branch"
+    }
+  ],
+  "live_pages_deployment": "pending user-controlled merge to main"
+}

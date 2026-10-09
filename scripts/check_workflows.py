@@ -74,6 +74,9 @@ def validate(directory):
     for name in REQUIRED:
         if name not in jobs:errors.append(f'ci: {name} job missing')
     site_steps=jobs.get('site',{}).get('steps',[])
+    preview=[step for step in site_steps if step.get('with',{}).get('name')=='project-site-preview']
+    if len(preview)!=1 or preview[0].get('with',{}).get('path')!='site/dist' or not preview[0].get('uses','').startswith('actions/upload-artifact@'):
+        errors.append('ci: PR site review artifact must contain only site/dist')
     if not any(step.get('uses','').startswith('actions/upload-pages-artifact@') for step in site_steps):errors.append('ci: Pages artifact upload missing')
     for step in site_steps:
         if step.get('uses','').startswith('actions/upload-pages-artifact@'):

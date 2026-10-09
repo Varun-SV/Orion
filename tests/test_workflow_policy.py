@@ -95,3 +95,11 @@ def test_policy_rejects_nested_permission_elevation(tmp_path):
     result=run_policy('--directory',str(tmp_path))
     assert result.returncode!=0
     assert 'permission' in result.stdout.lower()
+
+def test_site_build_is_available_as_a_scoped_pr_review_artifact():
+    import yaml
+    ci=yaml.load((ROOT/'.github/workflows/ci.yml').read_text(),Loader=yaml.BaseLoader)
+    previews=[step for step in ci['jobs']['site']['steps'] if step.get('with',{}).get('name')=='project-site-preview']
+    assert len(previews)==1, 'PR review needs a downloadable static site build'
+    assert previews[0]['with']['path']=='site/dist'
+    assert previews[0]['uses'].startswith('actions/upload-artifact@')
