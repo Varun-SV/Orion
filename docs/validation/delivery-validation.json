@@ -77,5 +77,18 @@
     "check_name": "CI",
     "app_id": 15368,
     "conclusion": "success"
+  },
+  "delivery_completion_evidence": {
+    "head_sha": "93cb00218f0c23a7e7825c5a82bb1e180421fb81",
+    "run_id": 37885330767,
+    "run_url": "https://github.com/Varun-SV/Orion/actions/runs/37885330767",
+    "ci_check_id": 113674590839,
+    "all_required_jobs_success": true,
+    "pr_ready": true,
+    "pr_url": "https://github.com/Varun-SV/Orion/pull/3",
+    "site_preview_artifact_id": 11596361846,
+    "site_artifact_downloaded_and_validated": true,
+    "packaged_app_and_site_preview_verified": true,
+    "public_pages_deployment": "pending user-controlled main merge"
   }
 }

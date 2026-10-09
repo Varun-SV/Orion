@@ -104,8 +104,8 @@ assert process.wait(timeout=10) == 0
 Run before packaging updates; expect missing bundle-resource behavior.
 - [x] Implement static resource bundling, compatible dependency locks, CI and documented install/upgrade/backup/recovery/server/keychain/fingerprint setup. Measure actual package size/startup; do not promise unmeasured savings. Retain cross-platform source support while qualifying installer verification by OS.
 - [x] Run all backend/UI suites/typecheck/build, production browser QA, migration/fault fixtures and isolated Windows package smoke tests. Report unavailable live-server/other-platform checks explicitly.
-- [ ] Request an independent whole-branch review using the chosen execution workflow; fix important actionable findings with regression tests, then rerun affected and full checks. Commit/push all completed code to PR #3.
-- [ ] Rewrite PR title/body around final implemented behavior and observed validation; remove spec-only status. Mark ready only when required work/checks are complete. Attach PR and hand off actual production preview with material verification limits. Do not merge.
+- [x] Request an independent whole-branch review using the chosen execution workflow; fix important actionable findings with regression tests, then rerun affected and full checks. Commit/push all completed code to PR #3.
+- [x] Rewrite PR title/body around final implemented behavior and observed validation; remove spec-only status. Mark ready only when required work/checks are complete. Attach PR and hand off actual production preview with material verification limits. Do not merge.
 
 ## Completion contract
 
