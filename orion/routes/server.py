@@ -55,5 +55,5 @@ def saved_hints(item_id:str,runtime:Runtime):
 @router.get('/server/mapping/{series_id}')
 def saved_mapping(series_id:str,runtime:Runtime):
     with runtime.store.transaction() as conn:
-        row=conn.execute('SELECT value FROM orion_settings WHERE key=?',('server_mapping_'+runtime.server.revision()+'_'+series_id,)).fetchone()
+        row=conn.execute('SELECT value FROM orion_settings WHERE key=?',('server_mapping_'+runtime.server.mapping_revision()+'_'+series_id,)).fetchone()
     return ProviderMapping.model_validate_json(row[0]) if row else None
