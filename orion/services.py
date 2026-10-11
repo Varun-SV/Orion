@@ -62,12 +62,28 @@ class Services:
         return Duplicates(self.library).compare(payload['item_ids'],payload.get('exact',False),context)
 
     def test_provider(self,payload,context):
+        provider = payload['provider']
+        revision = payload.get('provider_revision')
+        with self.config._lock:
+            if revision != self.config.key_revision(provider):
+                raise ProviderError('provider_configuration_changed',provider)
         try:
-            return self._test_provider(payload,context)
+            result = self._test_provider(payload,context)
         except (ProviderError,requests.RequestException) as exc:
-            error = exc if isinstance(exc,ProviderError) else transport_error(exc,payload['provider'])
-            self.config.set_pref('provider_health_'+payload['provider'],{'health':'unavailable','detail':error.code})
+            error = exc if isinstance(exc,ProviderError) else transport_error(exc,provider)
+            with self.config._lock:
+                if context.cancelled():
+                    raise Cancelled() from None
+                if revision != self.config.key_revision(provider):
+                    raise ProviderError('provider_configuration_changed',provider) from None
+                self.config.set_pref('provider_health_'+provider,{'health':'unavailable','detail':error.code})
             raise error from None
+        with self.config._lock:
+            if context.cancelled():
+                raise Cancelled()
+            if revision != self.config.key_revision(provider):
+                raise ProviderError('provider_configuration_changed',provider)
+            return result
 
     def _test_provider(self,payload,context):
         provider = payload['provider']
