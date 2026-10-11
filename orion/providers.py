@@ -1,11 +1,13 @@
 from __future__ import annotations
+import os
 import re
+import stat
 import threading
 import time
 from pathlib import Path
 import requests
 from orion.models import Candidate, MediaItem, JobContext
-from orion.discovery import Cancelled
+from orion.discovery import Cancelled, linked, signature
 from orion.store import safe_metadata
 
 class ProviderError(RuntimeError):
@@ -212,9 +214,41 @@ class Providers:
     def _audd(self,item,title,context):
         if not self.config.get_pref('audd_enabled',False):
             raise ProviderError('consent_required','audd')
+        if context.cancelled():raise Cancelled()
+        path = Path(item.path)
+        # Lookups run after scans; a replaced path must not upload unrelated data.
+        if any(linked(parent) for parent in (path,*path.parents)):
+            raise ProviderError('item_changed','audd')
+        if self.store is not None:
+            with self.store.transaction() as conn:
+                row = conn.execute('SELECT path FROM orion_sources WHERE id=?',(item.source_id,)).fetchone()
+            if row is None:
+                raise ProviderError('item_changed','audd')
+            try:
+                path.absolute().relative_to(Path(row['path']).absolute())
+            except ValueError:
+                raise ProviderError('item_changed','audd') from None
+        try:
+            if item.signature.get('type')!='file' or signature(path,context)!=item.signature:
+                raise ProviderError('item_changed','audd')
+            flags = os.O_RDONLY | getattr(os,'O_NOFOLLOW',0) | getattr(os,'O_BINARY',0)
+            descriptor = os.open(path,flags)
+            with os.fdopen(descriptor,'rb') as file:
+                opened=os.fstat(file.fileno())
+                fields=(('st_dev','device'),('st_ino','inode'),('st_size','size'),('st_mtime_ns','mtime_ns'))
+                if not stat.S_ISREG(opened.st_mode) or any(
+                    getattr(opened,attr)!=item.signature[key] for attr,key in fields):
+                    raise ProviderError('item_changed','audd')
+                sample=file.read(512*1024)
+                finished=os.fstat(file.fileno())
+                if any(getattr(finished,attr)!=getattr(opened,attr) for attr,key in fields):
+                    raise ProviderError('item_changed','audd')
+            if signature(path,context)!=item.signature or any(linked(parent) for parent in (path,*path.parents)):
+                raise ProviderError('item_changed','audd')
+        except (OSError,ValueError,KeyError):
+            raise ProviderError('item_changed','audd') from None
+        if context.cancelled():raise Cancelled()
         key = self._key('audd')
-        with Path(item.path).open('rb') as file:
-            sample = file.read(512*1024)
         body = self._call('audd','POST','https://api.audd.io/',context,data={'api_token':key,'return':'apple_music,spotify'},files={'file':('audio',sample,'application/octet-stream')})
         if body.get('status') != 'success':
             raise ProviderError('provider_unavailable','audd')
