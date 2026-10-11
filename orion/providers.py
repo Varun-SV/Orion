@@ -215,7 +215,24 @@ class Providers:
         if not fpcalc_available():
             raise ProviderError('fpcalc_required','acoustid')
         self._verify_indexed_audio(item,context,'acoustid')
-        fingerprint = fingerprint_file(item.path)
+        path=Path(item.path)
+        flags=os.O_RDONLY | getattr(os,'O_NOFOLLOW',0) | getattr(os,'O_BINARY',0)
+        try:
+            descriptor=os.open(path,flags)
+            with os.fdopen(descriptor,'rb') as source:
+                opened=os.fstat(source.fileno())
+                fields=(('st_dev','device'),('st_ino','inode'),('st_size','size'),('st_mtime_ns','mtime_ns'))
+                if not stat.S_ISREG(opened.st_mode) or any(
+                        getattr(opened,attr)!=item.signature[key] for attr,key in fields):
+                    raise ProviderError('item_changed','acoustid')
+                # Feed the verified handle via stdin so a path swap cannot
+                # redirect fpcalc to another file during the subprocess.
+                fingerprint=fingerprint_file(source)
+                finished=os.fstat(source.fileno())
+                if any(getattr(finished,attr)!=getattr(opened,attr) for attr,key in fields):
+                    raise ProviderError('item_changed','acoustid')
+        except (OSError,ValueError,KeyError):
+            raise ProviderError('item_changed','acoustid') from None
         self._verify_indexed_audio(item,context,'acoustid')
         if not fingerprint:
             raise ProviderError('fingerprint_failed','acoustid')
