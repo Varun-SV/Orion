@@ -19,6 +19,25 @@ class PlanOptions(Record):
     profile: NamingProfile = Field(default_factory=NamingProfile)
 
 
+def volume_identity(root):
+    """Identity of the mounted filesystem and its configured root directory."""
+    root = Path(root)
+    stat = root.stat()
+    identity = [stat.st_dev, stat.st_ino]
+    if os.name == 'nt':
+        # Windows st_dev alone can denote a reused drive letter.
+        import ctypes
+        serial = ctypes.c_uint32()
+        anchor = str(root.anchor)
+        if not ctypes.windll.kernel32.GetVolumeInformationW(
+                anchor, None, 0, ctypes.byref(serial), None, None, None, 0):
+            raise OSError('Cannot read Windows destination volume identity')
+        identity.append(serial.value)
+    else:
+        identity.append(getattr(os.statvfs(root), 'f_fsid', None))
+    return identity
+
+
 def nearest_existing(path):
     path = Path(path)
     while not path.exists() and path != path.parent:
@@ -160,6 +179,7 @@ class Planner:
                 operation = Operation(id=str(uuid4()),plan_id=plan.id,item_id=iid,source=str(src),destination=str(dst),expected_signature=expected,
                                       verification={'source_root':str(source_root),'destination_root':str(destination_root),
                                                     'source_root_resolved':str(source_root.resolve()),'destination_root_resolved':str(destination_root.resolve()),
+                                                    'source_root_volume':volume_identity(source_root),'destination_root_volume':volume_identity(destination_root),
                                                     'item_signature':current,'item_decision':item.decision.model_dump(),'item_path':item.path,'source_directory':item.path if current['type']=='directory' else '',
                                                     'destination_item_path':str(item_target),'profile_id':profile.id,'profile_version':profile.version,'profile_snapshot':profile.model_dump()})
                 if normalized(dst) in reserved:
@@ -319,6 +339,7 @@ class Planner:
             op = Operation(id=str(uuid4()),plan_id=plan.id,item_id=item.id,kind=spec.kind,source=item.path,destination=str(dst),
                 expected_signature={'type':'generated','size':10*1024*1024 if spec.artwork_url else len(spec.content.encode('utf-8'))},verification={
                     'source_root':str(source_root),'destination_root':str(destination_root),'source_root_resolved':str(source_root.resolve()),'destination_root_resolved':str(destination_root.resolve()),
+                    'source_root_volume':volume_identity(source_root),'destination_root_volume':volume_identity(destination_root),
                     'item_signature':item.signature,'item_decision':item.decision.model_dump(),'item_path':item.path,'destination_item_path':str(item_target),
                     'content':spec.content,'artwork_url':spec.artwork_url,'dependencies':dependencies,'transfer_mode':'create',
                     'profile_id':options.profile.id,'profile_version':options.profile.version,'profile_snapshot':options.profile.model_dump()})
@@ -353,13 +374,21 @@ class Planner:
                     or str(dstroot.resolve()) != details['destination_root_resolved'] or not contained(dst,dstroot)):
                 issue('outside_root','A path escaped the selected roots or became linked')
                 continue
+            try:
+                if (details.get('destination_root_volume') != volume_identity(dstroot)
+                    or (source_required and details.get('source_root_volume') != volume_identity(srcroot))):
+                    issue('volume_changed','Source or destination volume was replaced; create a fresh preview')
+                    continue
+            except OSError:
+                issue('destination_unavailable','Cannot verify the selected volume identity')
+                continue
             if dependencies:
                 from orion.filesystem import Filesystem
                 for data in dependencies:
                     done = Operation.model_validate(data)
                     try:
                         done_root = Path(done.verification['destination_root'])
-                        if not done_root.is_dir() or str(done_root.resolve()) != done.verification['destination_root_resolved'] or not contained(Path(done.destination),done_root):
+                        if not done_root.is_dir() or str(done_root.resolve()) != done.verification['destination_root_resolved'] or not contained(Path(done.destination),done_root) or done.verification.get('destination_root_volume') != volume_identity(done_root):
                             raise ValueError('Completed media escaped its destination root')
                         if signature(Path(done.destination))!=done.verification['final_signature'] or Filesystem().hash(done.destination)!=done.verification['sha256']:
                             issue('target_changed','Completed media changed before retry')
