@@ -210,8 +210,13 @@ class Discovery:
                 report.unavailable_sources.append(sid)
             if not report.cancelled and not walk_errors:
                 with self.library.store.transaction() as conn:
-                    rows = conn.execute('SELECT id,path FROM orion_items WHERE source_id=?',(sid,)).fetchall()
+                    rows = conn.execute('SELECT id,path,status,metadata FROM orion_items WHERE source_id=?',(sid,)).fetchall()
                     for row in rows:
-                        if row['id'] not in seen and Path(row['path']).absolute().is_relative_to(root.absolute()) and not self.library._has_unfinished_operations(conn,row['id']):
+                        # A fully moved item with late residual members is still
+                        # awaiting explicit recovery, even if no known media remain.
+                        recovering = row['status']=='error' and '"recovery_paths"' in row['metadata']
+                        if (not recovering and row['id'] not in seen
+                            and Path(row['path']).absolute().is_relative_to(root.absolute())
+                            and not self.library._has_unfinished_operations(conn,row['id'])):
                             conn.execute("UPDATE orion_items SET status='unavailable' WHERE id=?",(row['id'],))
         return report
