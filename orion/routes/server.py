@@ -26,13 +26,15 @@ def status(runtime:Runtime):return runtime.server.status()
 def configure(body:ServerSettings,runtime:Runtime):return runtime.server.save(body)
 @router.post('/server/credentials')
 def credentials(body:Credentials,runtime:Runtime):
-    result=runtime.config.set_api_key('media_server',body.key.get_secret_value(),body.session_only)
-    runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
+    with runtime.config._lock:
+        result=runtime.config.set_api_key('media_server',body.key.get_secret_value(),body.session_only)
+        runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
     return result
 @router.delete('/server/credentials')
 def clear(runtime:Runtime):
-    runtime.config.set_api_key('media_server','',session_only='media_server' in runtime.config._session_services)
-    runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
+    with runtime.config._lock:
+        runtime.config.set_api_key('media_server','',session_only='media_server' in runtime.config._session_services)
+        runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
     return {'configured':False}
 @router.post('/server/test',status_code=202)
 def test(runtime:Runtime):return runtime.server.submit('server_test')
