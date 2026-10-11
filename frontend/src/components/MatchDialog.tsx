@@ -92,7 +92,7 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
         '/items/' + item.id + '/decision',
         json('PUT', {
           item_id: item.id,
-          observed_signature: item.signature,
+          signature_token: item.signature_token,
           provider: choice?.provider ?? item.decision?.provider ?? 'manual',
           provider_id: choice?.provider_id ?? item.decision?.provider_id ?? '',
           metadata,
