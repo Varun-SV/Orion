@@ -42,9 +42,10 @@ class ServerIntegration:
         if config.server_type not in ('jellyfin','emby'):raise ValueError('Choose Jellyfin or Emby')
         if config.enabled and not config.url:raise ValueError('Enter the server URL before enabling integration')
         if config.url:config=config.model_copy(update={'url':server_url(config.url)})
-        self.runtime.config.set_pref('media_server_settings',config.model_dump())
-        self.runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
-        return self.status()
+        with self.runtime.config._lock:
+            self.runtime.config.set_pref('media_server_settings',config.model_dump())
+            self.runtime.config.set_pref('server_health',{'health':'not_checked','detail':''})
+            return self.status()
 
     def client(self,payload):
         if payload.get('server_revision')!=self.revision():raise ServerError('server_configuration_changed')
@@ -91,7 +92,12 @@ class ServerIntegration:
             if kind=='server_test':
                 info=client.test_connection(context)
                 users=client.users(context)
-                self.runtime.config.set_pref('server_health',{'health':'connected','detail':info.name+' · '+info.version})
+                with self.runtime.config._lock:
+                    if payload['server_revision'] != self.revision():
+                        raise ServerError('server_configuration_changed')
+                    if context.cancelled():
+                        raise ServerError('server_test_cancelled')
+                    self.runtime.config.set_pref('server_health',{'health':'connected','detail':info.name+' · '+info.version})
                 return {'server':info.model_dump(),'users':[u.model_dump() for u in users]}
             if kind=='server_discover':
                 items=client.items(ServerQuery.model_validate(payload['query']),context)
@@ -125,7 +131,7 @@ class ServerIntegration:
             raise ValueError('Unknown server job')
         except ProviderError as exc:
             with self.runtime.config._lock:
-                if kind not in ('server_hints','episode_gaps') or (payload['server_revision']==self.revision() and exc.code not in ('item_changed','server_configuration_changed')):
+                if payload['server_revision']==self.revision() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled'):
                     self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
             if kind=='server_hints' and exc.code not in ('item_changed','server_configuration_changed'):
                 self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code)
