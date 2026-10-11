@@ -31,7 +31,7 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         library = Library(store)
         planner = Planner(library)
         runtime = Services(cfg,store,library,Discovery(library),Providers(cfg,store=store),planner,Executor(library,planner))
-        runtime.jobs = JobManager(store,runtime.handlers())
+        runtime.jobs = JobManager(store,runtime.handlers(),runtime=runtime)
         from orion.integrations.manager import ServerIntegration
         runtime.server = ServerIntegration(runtime)
         planner.catalogue = runtime.server.catalogue
