@@ -85,7 +85,9 @@ class Library:
             row=conn.execute('SELECT * FROM orion_items WHERE source_id=? AND path=?',(item.source_id,item.path)).fetchone()
             if row is None:
                 retired=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
-                if retired:
+                if retired and normalized(retired['path']) == normalized(item.path) and item.signature == json.loads(retired['signature']):
+                    row=retired
+                elif retired:
                     # A path is a location, not a permanent identity. Distinguish
                     # a real new arrival from a scan racing a completed move.
                     from orion.discovery import signature
