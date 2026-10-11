@@ -47,7 +47,7 @@ class Services:
                 'scan':lambda p,c:self.discovery.scan(p['source_ids'],p.get('deep',False),c),
                 'lookup':self.lookup,
                 'organise':self.organise,
-                'undo':lambda p,c:self.executor.execute(p['plan_id'],p['revision'],c),
+                'undo':self.organise,
                 'provider_test':self.test_provider,
                 'comparison':self.compare,
                 'watch_scan':lambda p,c:self.watcher.scan_ready(p,c),
