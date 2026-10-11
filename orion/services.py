@@ -30,7 +30,8 @@ class Services:
             values=[r.model_dump() for r in candidates]
             if context.cancelled():raise Cancelled()
             if not self.library.publish_lookup(item.id,item.signature,values,item.decision):
-                raise ProviderError('item_changed',payload.get('provider') or 'lookup')
+                # A confirmation made during the external request takes priority.
+                return {'item_id':item.id,'candidates':[],'skipped':True,'reason':'item_changed'}
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
             if context.cancelled():raise Cancelled() from None

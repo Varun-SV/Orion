@@ -172,9 +172,9 @@ def test_late_lookup_does_not_overwrite_new_decision(library, tmp_path, context)
         library.decide(item.id, MatchDecision(item_id=item.id, metadata={'title': 'User choice'}))
         return {'results': [{'id': 99, 'title': 'Late result'}]}
     services = Services(cfg, library.store, library, None, Providers(cfg, request=result_after_decision), None, None)
-    with pytest.raises(ProviderError) as error:
-        services.lookup({'item_id': item.id, 'provider': 'tmdb'}, context)
-    assert error.value.code == 'item_changed'
+    result = services.lookup({'item_id': item.id, 'provider': 'tmdb'}, context)
+    assert result['candidates'] == [] and result['skipped'] is True
+    assert result['reason'] == 'item_changed'
     updated = library.get(item.id)
     assert updated.status == 'approved' and updated.decision.metadata['title'] == 'User choice'
     assert not updated.metadata.get('candidates')
