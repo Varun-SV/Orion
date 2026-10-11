@@ -1,6 +1,8 @@
 from __future__ import annotations
+import hashlib
+import json
 from typing import Any, Generic, Protocol, TypeVar, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 KINDS = ('movies', 'series', 'anime', 'anime_films', 'web_series', 'music', 'books')
 KIND_NAMES = dict(zip(KINDS, ('Movies', 'Series', 'Anime', 'Anime films', 'Web series', 'Music', 'Books')))
@@ -26,6 +28,14 @@ class MediaItem(Record):
     signature: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
     decision: MatchDecision | None = None
+
+    @computed_field
+    @property
+    def signature_token(self) -> str:
+        # A canonical opaque token avoids JS precision loss for nanosecond
+        # timestamps and large inode numbers when confirming a review.
+        raw=json.dumps(self.signature,sort_keys=True,separators=(',',':'))
+        return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 T = TypeVar('T')
 class Page(Record, Generic[T]):
