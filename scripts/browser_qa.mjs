@@ -236,7 +236,12 @@ try {
     .click();
   // Confirmation now verifies the review-time media signature. Wait for the
   // server response and dialog dismissal before attempting navigation.
-  await expect(page.getByRole("dialog", { name: "Review match" })).toHaveCount(0);
+  try {
+    await expect(page.getByRole("dialog", { name: "Review match" })).toHaveCount(0);
+  } catch (error) {
+    const details = await page.getByRole("dialog", { name: "Review match" }).innerText();
+    throw new Error("Review confirmation did not close: " + details.slice(-1800), { cause: error });
+  }
   await navigate("profiles", "Naming presets");
   await page.getByRole("combobox", {name:"Naming preset"}).selectOption("default-movies");
   await check("Optional sidecars default off and persist only after explicit saving", async()=>{
