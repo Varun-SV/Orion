@@ -1,5 +1,6 @@
 """Opt-in polling that queues discovery only after the whole source is stable."""
 from __future__ import annotations
+import hashlib
 import json
 import os
 import threading
@@ -59,7 +60,11 @@ class Watcher:
     def snapshot(root, context):
         if not root.is_dir() or any(linked(parent) for parent in (root,*root.parents)):
             raise OSError('Source unavailable')
-        result = {}
+        # Stream a deterministic digest: never persist a full file tree in job
+        # payloads or watcher checkpoints. Include names and stat signatures.
+        digest = hashlib.sha256()
+        downloading = False
+        count = 0
         errors = []
         for directory, dirs, files in os.walk(root, followlinks=False, onerror=errors.append):
             if context.cancelled():
@@ -68,10 +73,16 @@ class Watcher:
             for name in sorted(files):
                 path = Path(directory)/name
                 if not linked(path) and path.is_file():
-                    result[path.relative_to(root).as_posix()] = signature(path)
+                    relative = path.relative_to(root).as_posix()
+                    entry = json.dumps([relative,signature(path)],sort_keys=True,separators=(',',':'))
+                    digest.update(entry.encode('utf-8'))
+                    digest.update(b'\\n')
+                    count += 1
+                    if path.suffix.lower() in ('.part','.crdownload','.download','.tmp'):
+                        downloading = True
         if errors:
             raise OSError('Source unavailable')
-        return result
+        return {'digest':digest.hexdigest(),'count':count,'downloading':downloading}
 
     def scan_ready(self, payload, context):
         sid = payload['source_id']
@@ -133,8 +144,7 @@ class Watcher:
                 if snapshot != data.get('observed'):
                     data.update(observed=snapshot,stable_since=now)
                 elif snapshot != data.get('processed') and now-data.get('stable_since',now)>=data.get('stability_seconds',30):
-                    downloading = any(Path(p).suffix.lower() in ('.part','.crdownload','.download','.tmp') for p in snapshot)
-                    if not downloading:
+                    if not snapshot['downloading']:
                         if self.jobs:
                             job = self.jobs.submit('watch_scan',{'source_id':sid,'snapshot':snapshot})
                             data.update(pending_job=job.id,pending_snapshot=snapshot)
