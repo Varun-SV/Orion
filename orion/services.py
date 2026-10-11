@@ -30,7 +30,11 @@ class Services:
             values=[r.model_dump() for r in candidates]
             if context.cancelled():raise Cancelled()
             if not self.library.publish_lookup(item.id,item.signature,values,item.decision):
-                # A confirmation made during the external request takes priority.
+                # A changed file is a failed lookup; a concurrently confirmed
+                # decision simply supersedes a stale result without an error.
+                current = self.library.get(item.id)
+                if current.signature != item.signature:
+                    raise ProviderError('item_changed',payload.get('provider') or 'lookup')
                 return {'item_id':item.id,'candidates':[],'skipped':True,'reason':'item_changed'}
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
