@@ -137,16 +137,16 @@ class Library:
             if conn.execute("SELECT 1 FROM orion_operations WHERE plan_id=? AND json_extract(data,'$.item_id')=? LIMIT 1",(plan_id,item_id)).fetchone():
                 raise ValueError('This item has an active filesystem job; wait for execution to finish before changing its decision')
 
-    def decide(self, item_id: str, decision: MatchDecision, observed_signature=None) -> MediaItem:
+    def decide(self, item_id: str, decision: MatchDecision, signature_token=None) -> MediaItem:
         if decision.item_id != item_id or not str(decision.metadata.get('title','')).strip():
             raise ValueError('Decision must identify this item and supply a title')
         decision = decision.model_copy(update={'metadata':safe_metadata(decision.metadata)})
         with self.store.transaction() as conn:
             self._ensure_decision_editable(conn,item_id)
-            if observed_signature is not None:
-                row=conn.execute('SELECT signature FROM orion_items WHERE id=?',(item_id,)).fetchone()
+            if signature_token is not None:
+                row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone()
                 if row is None:raise KeyError('Item not found')
-                if json.loads(row['signature']) != observed_signature:
+                if self.from_row(row).signature_token != signature_token:
                     raise ValueError('Item changed since review; reload and confirm the current media')
             changed=conn.execute("UPDATE orion_items SET decision=?,status=CASE WHEN status='organised' THEN status ELSE 'approved' END,updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
