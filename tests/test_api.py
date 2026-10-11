@@ -89,7 +89,7 @@ def test_actual_scan_review_plan_move_and_undo_flow(client,tmp_path):
     assert scan.status_code==202
     assert wait_job(client,scan.json()['id'])['state']=='completed'
     item = client.get('/api/v1/items').json()['items'][0]
-    review = client.put('/api/v1/items/'+item['id']+'/decision',json={'item_id':item['id'],'metadata':{'title':'Arrival','year':'2016'}})
+    review = client.put('/api/v1/items/'+item['id']+'/decision',json={'item_id':item['id'],'observed_signature':item['signature'],'metadata':{'title':'Arrival','year':'2016'}})
     assert review.status_code==200
     created = client.post('/api/v1/plans',json={'item_ids':[item['id']],'options':{'destination_id':destination['id']}})
     assert created.status_code==201 and not created.json()['issues']
