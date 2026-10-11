@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import os
 import re
 import stat
@@ -38,6 +39,8 @@ class RateLimiter:
             time.sleep(min(wait,0.05))
 
 LIMITER = RateLimiter()
+MAX_PROVIDER_RESPONSE = 4 * 1024 * 1024
+MAX_PROVIDER_DURATION = 30.0
 PROVIDER_KINDS = {
     'tmdb': ('movies','series','anime','anime_films','web_series'),
     'anilist': ('anime','anime_films'), 'anidb': ('anime','anime_films'),
@@ -66,7 +69,8 @@ class Providers:
         for attempt in range(3):
             LIMITER.acquire(provider,context)
             try:
-                with requests.request(method,url,timeout=(3,10),headers={'User-Agent':'Orion/0.2 (https://github.com/Varun-SV/Orion)'},**kwargs) as response:
+                started = time.monotonic()
+                with requests.request(method,url,timeout=(3,3),stream=True,headers={'User-Agent':'Orion/0.2 (https://github.com/Varun-SV/Orion)'},**kwargs) as response:
                     if response.status_code in (429,503) and attempt < 2:
                         delay = min(float(response.headers.get('Retry-After',1)),3)
                         end = time.monotonic() + max(delay,0)
@@ -75,7 +79,19 @@ class Providers:
                             time.sleep(min(0.05,end-time.monotonic()))
                         continue
                     response.raise_for_status()
-                    return response.json()
+                    length = response.headers.get('Content-Length')
+                    if length is not None and int(length) > MAX_PROVIDER_RESPONSE:
+                        raise ProviderError('response_too_large',provider)
+                    parts, size = [], 0
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if context.cancelled():raise Cancelled()
+                        if time.monotonic() - started > MAX_PROVIDER_DURATION:
+                            raise ProviderError('provider_timeout',provider)
+                        size += len(chunk)
+                        if size > MAX_PROVIDER_RESPONSE:
+                            raise ProviderError('response_too_large',provider)
+                        parts.append(chunk)
+                    return json.loads(b''.join(parts))
             except (requests.Timeout, requests.ConnectionError):
                 if attempt == 2:
                     raise
