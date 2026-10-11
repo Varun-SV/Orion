@@ -168,13 +168,33 @@ class Library:
             conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',(json.dumps(current),utcnow(),item_id))
         return self.get(item_id)
 
-    def publish_lookup(self,item_id,observed_signature,candidates,observed_decision=_UNSET_DECISION):
+    @staticmethod
+    def prepare_lookup(conn, item_id, observed_signature=None):
+        """Claim a new lookup generation in the job enqueue transaction."""
+        row=conn.execute('SELECT signature,metadata FROM orion_items WHERE id=?',(item_id,)).fetchone()
+        if row is None:raise KeyError('Item not found')
+        if observed_signature is not None and json.loads(row['signature']) != observed_signature:
+            return None
+        metadata=json.loads(row['metadata'])
+        generation=str(uuid4())
+        metadata['_lookup_generation']=generation
+        conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',
+                     (json.dumps(metadata),utcnow(),item_id))
+        return generation
+
+    def begin_lookup(self, item_id, observed_signature=None):
+        with self.store.transaction() as conn:
+            return self.prepare_lookup(conn,item_id,observed_signature)
+
+    def publish_lookup(self,item_id,observed_signature,candidates,observed_decision=_UNSET_DECISION,generation=None):
         # The signature and current decision are read with the same writer
         # transaction that publishes candidates and their resulting status.
         updates=safe_metadata({'candidates':candidates,'lookup_state':'ready' if candidates else 'no_match','lookup_error':None})
         with self.store.transaction() as conn:
             latest=self.from_row(conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone())
-            if latest.signature!=observed_signature or (observed_decision is not _UNSET_DECISION and latest.decision!=observed_decision):
+            if (latest.signature!=observed_signature
+                or (observed_decision is not _UNSET_DECISION and latest.decision!=observed_decision)
+                or (generation is not None and latest.metadata.get('_lookup_generation') != generation)):
                 return False
             metadata={**latest.metadata,**updates}
             next_status = latest.status
@@ -187,13 +207,15 @@ class Library:
                          (json.dumps(metadata),next_status,utcnow(),item_id))
         return True
 
-    def lookup_failed(self, item_id, observed_signature, code, observed_decision=_UNSET_DECISION):
+    def lookup_failed(self, item_id, observed_signature, code, observed_decision=_UNSET_DECISION, generation=None):
         # Read and update under one writer transaction: confirmation/organisation
         # may have completed while a bounded provider request was in flight.
         with self.store.transaction() as conn:
             row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone()
             latest=self.from_row(row)
-            if latest.signature != observed_signature or (observed_decision is not _UNSET_DECISION and latest.decision != observed_decision):
+            if (latest.signature != observed_signature
+                or (observed_decision is not _UNSET_DECISION and latest.decision != observed_decision)
+                or (generation is not None and latest.metadata.get('_lookup_generation') != generation)):
                 return latest
             metadata={**latest.metadata,'lookup_state':'error','lookup_error':code}
             conn.execute("UPDATE orion_items SET metadata=?,status=CASE WHEN decision IS NULL THEN 'error' ELSE status END,updated_at=? WHERE id=?",
