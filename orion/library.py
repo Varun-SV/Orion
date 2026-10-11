@@ -92,12 +92,14 @@ class Library:
                     item=item.model_copy(update={'id':str(uuid4()),'decision':None,'status':'pending'})
             if row:
                 latest=self.from_row(row)
-                if self._has_unfinished_operations(conn,latest.id):
+                if self._has_unfinished_operations(conn,latest.id) or (latest.status=='error' and latest.metadata.get('recovery_paths')):
+                    # Preserve split-directory recovery identity and confirmation.
                     return latest
                 item=item.model_copy(update={'id':latest.id})
                 if latest.signature == item.signature or not latest.signature:
                     item=item.model_copy(update={'decision':latest.decision,
-                        'status':('approved' if latest.decision else 'pending') if latest.status=='unavailable' else latest.status,
+                        'status':('organised' if latest.metadata.get('_orion_organised_at') == latest.path
+                                  else 'approved' if latest.decision else 'pending') if latest.status=='unavailable' else latest.status,
                         'metadata':{**latest.metadata,**item.metadata}})
                 else:
                     item=item.model_copy(update={'decision':None,'status':'pending'})
