@@ -168,8 +168,14 @@ class Library:
             if latest.signature!=observed_signature:
                 return False
             metadata={**latest.metadata,**updates}
-            conn.execute("UPDATE orion_items SET metadata=?,status=CASE WHEN decision IS NULL AND ?=0 THEN 'no_match' ELSE status END,updated_at=? WHERE id=?",
-                         (json.dumps(metadata),len(candidates),utcnow(),item_id))
+            next_status = latest.status
+            if latest.decision is None:
+                if candidates and latest.status in ('error', 'no_match'):
+                    next_status = 'pending'
+                elif not candidates and latest.status in ('pending', 'error', 'no_match'):
+                    next_status = 'no_match'
+            conn.execute("UPDATE orion_items SET metadata=?,status=?,updated_at=? WHERE id=?",
+                         (json.dumps(metadata),next_status,utcnow(),item_id))
         return True
 
     def lookup_failed(self, item_id, observed_signature, code):
