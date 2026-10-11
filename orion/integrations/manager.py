@@ -126,6 +126,7 @@ class ServerIntegration:
                         evidence.append('Confirmed provider identifier agrees')
                     elif hint.name.casefold()==str(metadata.get('title','')).casefold():evidence.append('Title agrees; identity needs review')
                     rows.append({**hint.model_dump(),'evidence':evidence})
+                if context.cancelled():raise ServerError('server_hints_cancelled')
                 changed=self._publish_hints(item,payload['server_revision'],rows)
                 if changed:raise ServerError(changed)
                 return {'item_id':item.id,'items':rows,'complete':True}
@@ -135,6 +136,7 @@ class ServerIntegration:
                 # Publish only while the submitted server identity is still current.
                 with self.runtime.config._lock:
                     if payload['server_revision']!=self.revision():raise ServerError('server_configuration_changed')
+                    if context.cancelled():raise ServerError('server_gaps_cancelled')
                     if report.state=='ready':
                         with self.runtime.store.transaction() as conn:
                             conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+self.mapping_revision()+'_'+payload['series_id'],mapping.model_dump_json()))
@@ -144,7 +146,8 @@ class ServerIntegration:
             with self.runtime.config._lock:
                 if payload['server_revision']==self.revision() and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled'):
                     self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
-            if kind=='server_hints' and exc.code not in ('item_changed','server_configuration_changed'):
+            if kind=='server_hints' and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_hints_cancelled'):
+                if context.cancelled():raise ServerError('server_hints_cancelled') from exc
                 self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code)
             raise
 
