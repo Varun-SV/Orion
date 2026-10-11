@@ -170,17 +170,21 @@ class Library:
 
     @staticmethod
     def prepare_lookup(conn, item_id, observed_signature=None):
-        """Claim a new lookup generation in the job enqueue transaction."""
-        row=conn.execute('SELECT signature,metadata FROM orion_items WHERE id=?',(item_id,)).fetchone()
+        """Claim submission-order priority without changing item metadata."""
+        row=conn.execute('SELECT signature FROM orion_items WHERE id=?',(item_id,)).fetchone()
         if row is None:raise KeyError('Item not found')
         if observed_signature is not None and json.loads(row['signature']) != observed_signature:
             return None
-        metadata=json.loads(row['metadata'])
         generation=str(uuid4())
-        metadata['_lookup_generation']=generation
-        conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',
-                     (json.dumps(metadata),utcnow(),item_id))
+        conn.execute('INSERT OR REPLACE INTO orion_settings(key,value) VALUES(?,?)',
+                     ('lookup_generation_'+item_id,generation))
         return generation
+
+    def current_lookup_generation(self,item_id):
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT value FROM orion_settings WHERE key=?',
+                             ('lookup_generation_'+item_id,)).fetchone()
+            return row['value'] if row else None
 
     def begin_lookup(self, item_id, observed_signature=None):
         with self.store.transaction() as conn:
@@ -194,7 +198,7 @@ class Library:
             latest=self.from_row(conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone())
             if (latest.signature!=observed_signature
                 or (observed_decision is not _UNSET_DECISION and latest.decision!=observed_decision)
-                or (generation is not None and latest.metadata.get('_lookup_generation') != generation)):
+                or (generation is not None and (conn.execute('SELECT value FROM orion_settings WHERE key=?',('lookup_generation_'+item_id,)).fetchone() or [None])[0] != generation)):
                 return False
             metadata={**latest.metadata,**updates}
             next_status = latest.status
@@ -215,7 +219,7 @@ class Library:
             latest=self.from_row(row)
             if (latest.signature != observed_signature
                 or (observed_decision is not _UNSET_DECISION and latest.decision != observed_decision)
-                or (generation is not None and latest.metadata.get('_lookup_generation') != generation)):
+                or (generation is not None and (conn.execute('SELECT value FROM orion_settings WHERE key=?',('lookup_generation_'+item_id,)).fetchone() or [None])[0] != generation)):
                 return latest
             metadata={**latest.metadata,'lookup_state':'error','lookup_error':code}
             conn.execute("UPDATE orion_items SET metadata=?,status=CASE WHEN decision IS NULL THEN 'error' ELSE status END,updated_at=? WHERE id=?",
