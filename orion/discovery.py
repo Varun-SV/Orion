@@ -41,7 +41,8 @@ def signature(path: Path, context: JobContext | None = None) -> dict[str, Any]:
     if not path.is_dir():
         raise ValueError('Only regular files and folders are supported')
     children = {}
-    for directory, dirs, files in os.walk(path, followlinks=False):
+    walk_errors = []
+    for directory, dirs, files in os.walk(path, followlinks=False, onerror=walk_errors.append):
         if context and context.cancelled():
             raise Cancelled()
         dirs[:] = sorted(d for d in dirs if not linked(Path(directory)/d))
@@ -51,6 +52,8 @@ def signature(path: Path, context: JobContext | None = None) -> dict[str, Any]:
                 continue
             if child.is_file():
                 children[child.relative_to(path).as_posix()] = signature(child)
+    if walk_errors:
+        raise OSError('Incomplete directory traversal') from walk_errors[0]
     return {'type':'directory','children':children,'device':stat.st_dev,'inode':stat.st_ino}
 
 def audio_metadata(path):
