@@ -51,7 +51,7 @@ def test_api_confirmation_rejects_stale_media_snapshot(client,tmp_path,context):
     file.write_bytes(b'new, entirely different media bytes')
     Discovery(runtime.library).scan([sid],False,context)
     stale=client.put('/api/v1/items/'+previous.id+'/decision',
-                     json={'item_id':previous.id,'observed_signature':previous.signature,
+                     json={'item_id':previous.id,'signature_token':previous.signature_token,
                            'metadata':{'title':'Old film'}})
     assert stale.status_code in (400,409)
     current=runtime.library.get(previous.id)
@@ -59,7 +59,7 @@ def test_api_confirmation_rejects_stale_media_snapshot(client,tmp_path,context):
     assert client.put('/api/v1/items/'+previous.id+'/decision',
                       json={'item_id':previous.id,'metadata':{'title':'Old film'}}).status_code==422
     fresh=client.put('/api/v1/items/'+previous.id+'/decision',
-                     json={'item_id':previous.id,'observed_signature':current.signature,
+                     json={'item_id':previous.id,'signature_token':current.signature_token,
                            'metadata':{'title':'Current film'}})
     assert fresh.status_code==200
     assert runtime.library.get(previous.id).decision.metadata['title']=='Current film'
