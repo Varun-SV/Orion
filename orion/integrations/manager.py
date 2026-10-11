@@ -29,7 +29,9 @@ class ServerIntegration:
 
     def revision(self):
         config=self.configuration()
-        return hashlib.sha256(json.dumps([config.url,config.server_type,config.user_id,config.enabled]).encode()).hexdigest()
+        # The secret is never hashed or persisted; only its generation changes.
+        return hashlib.sha256(json.dumps([config.url,config.server_type,config.user_id,config.enabled,
+            self.runtime.config.key_revision('media_server')]).encode()).hexdigest()
 
     def status(self):
         config=self.configuration()
@@ -135,7 +137,7 @@ class ServerIntegration:
             raise ValueError('Unknown server job')
         except ProviderError as exc:
             with self.runtime.config._lock:
-                if payload['server_revision']==self.revision() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled'):
+                if payload['server_revision']==self.revision() and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled'):
                     self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
             if kind=='server_hints' and exc.code not in ('item_changed','server_configuration_changed'):
                 self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code)
