@@ -402,9 +402,11 @@ class Executor:
                     item = self.library.get(iid)
                     if all(op.kind.startswith('create_') for op in members):
                         item.status='organised'
+                        item.metadata['_orion_organised_at']=item.path
                         self.library.upsert(item)
                     elif all(op.kind=='remove_created' and op.verification.get('restore_sidecar_only') for op in members):
                         item.status='approved' if item.decision else 'pending'
+                        item.metadata.pop('_orion_organised_at',None)
                         self.library.upsert(item)
                 continue
             if not all(op.state=='completed' for op in group): continue
@@ -423,6 +425,16 @@ class Executor:
                         except OSError:
                             pass
                     residual_directory = root.exists()
+            if residual_directory and not undo:
+                # A late arrival after preflight remains at the source. Preserve
+                # both paths and report partial recovery, not a complete move.
+                item.metadata['recovery_note']='Source-directory members remain after the move; review both locations before resolving this batch.'
+                item.metadata['recovery_paths']=list(dict.fromkeys([
+                    str(directory),str(group[0].verification.get('destination_item_path') or destinations[0].parent)]))
+                recovery_items.append(iid)
+                item.status='error'
+                self.library.upsert(item)
+                continue
             if undo and (residual_directory or any(op.verification.get('partial_undo') for op in group)):
                 # An item split across locations must not be advertised as restored.
                 primary = next((op for op in group if op.source==item.path),None)
@@ -441,6 +453,11 @@ class Executor:
             if target.exists():
                 item.signature = signature(target)
             if undo:
+                item.metadata.pop('recovery_note',None)
+                item.metadata.pop('recovery_paths',None)
+                item.metadata.pop('_orion_organised_at',None)
+            else:
+                item.metadata['_orion_organised_at']=str(target)
                 item.metadata.pop('recovery_note',None)
                 item.metadata.pop('recovery_paths',None)
             item.status = ('approved' if item.decision else 'pending') if undo else 'organised'
