@@ -27,10 +27,15 @@ class ServerIntegration:
     def configuration(self):
         return ServerSettings.model_validate(self.runtime.config.get_pref('media_server_settings',{}))
 
-    def revision(self):
+    def mapping_revision(self):
+        """Stable persisted identity of the server and selected user, not credentials."""
         config=self.configuration()
-        # The secret is never hashed or persisted; only its generation changes.
-        return hashlib.sha256(json.dumps([config.url,config.server_type,config.user_id,config.enabled,
+        return hashlib.sha256(json.dumps([config.url,config.server_type,config.user_id,config.enabled]).encode()).hexdigest()
+
+    def revision(self):
+        # Keep a process-local generation for in-flight authentication safety;
+        # do not use it as a durable key for saved episode mappings.
+        return hashlib.sha256(json.dumps([self.mapping_revision(),
             self.runtime.config.key_revision('media_server')]).encode()).hexdigest()
 
     def status(self):
@@ -132,7 +137,7 @@ class ServerIntegration:
                     if payload['server_revision']!=self.revision():raise ServerError('server_configuration_changed')
                     if report.state=='ready':
                         with self.runtime.store.transaction() as conn:
-                            conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+payload['server_revision']+'_'+payload['series_id'],mapping.model_dump_json()))
+                            conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+self.mapping_revision()+'_'+payload['series_id'],mapping.model_dump_json()))
                 return report
             raise ValueError('Unknown server job')
         except ProviderError as exc:
