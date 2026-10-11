@@ -195,9 +195,11 @@ def test_acoustid_does_not_submit_a_changed_sample(library, tmp_path, context, m
     cfg.set_api_key('acoustid', 'fixture', session_only=True)
     submitted = []
     monkeypatch.setattr(acoustid, 'fpcalc_available', lambda: True)
-    def fingerprint(path):
+    def fingerprint(source):
+        assert hasattr(source, 'fileno')
+        assert source.read() == b'original music'
         if replacement == 'during':
-            Path(path).write_bytes(b'newly replaced music, different bytes')
+            media.write_bytes(b'newly replaced music, different bytes')
         return ('fingerprint', 120)
     monkeypatch.setattr(acoustid, 'fingerprint_file', fingerprint)
     if replacement == 'before':
@@ -223,3 +225,21 @@ def test_server_client_rejects_old_revision_after_save(library, tmp_path):
     with pytest.raises(ServerError):
         server.client({'server_revision': revision})
     client._session.close()
+
+
+def test_fpcalc_process_reads_verified_file_stdin(tmp_path, monkeypatch):
+    import subprocess
+    import api.acoustid as acoustid
+    media = tmp_path / 'audio.mp3'
+    media.write_bytes(b'verified audio stream')
+    monkeypatch.setattr(acoustid.shutil, 'which', lambda name: '/fixture/fpcalc')
+    seen = []
+    def run(argv, **kwargs):
+        assert argv[-1] == '-'
+        assert kwargs['stdin'] is stream
+        seen.append(stream.read())
+        return SimpleNamespace(returncode=0, stdout='{"fingerprint":"fixture","duration":120}', stderr='')
+    monkeypatch.setattr(subprocess, 'run', run)
+    with media.open('rb') as stream:
+        assert acoustid.fingerprint_file(stream) == ('fixture',120)
+    assert seen == [b'verified audio stream']
