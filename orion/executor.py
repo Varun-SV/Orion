@@ -535,6 +535,7 @@ class Executor:
                 item = self.library.get(op.item_id)
                 inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,kind='remove_created',source=str(source),destination=str(source),expected_signature=details['final_signature'],verification={
                     'source_root':details['destination_root'],'destination_root':details['destination_root'],'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['destination_root_resolved'],
+                    'source_root_volume':details.get('destination_root_volume'),'destination_root_volume':details.get('destination_root_volume'),
                     'item_path':str(source),'item_signature':details['final_signature'],'item_decision':item.decision.model_dump() if item.decision else None,
                     'sha256':details['sha256'],'undo_of':batch_id,'transfer_mode':'remove',
                     'restore_sidecar_only':not any(member.item_id==op.item_id and member.kind=='move' for member in originals)})
@@ -548,6 +549,7 @@ class Executor:
             inverse = Operation(id=str(uuid4()),plan_id=plan.id,item_id=op.item_id,source=str(source),destination=str(destination),expected_signature=details['final_signature'],
                                 verification={'source_root':details['destination_root'],'destination_root':details['source_root'],
                                               'source_root_resolved':details['destination_root_resolved'],'destination_root_resolved':details['source_root_resolved'],
+                                              'source_root_volume':details.get('destination_root_volume'),'destination_root_volume':details.get('source_root_volume'),
                                               'item_path':str(source),'item_signature':details['final_signature'],'item_decision':item.decision.model_dump() if item.decision else None,
                                               'source_directory':str(item.path) if details.get('source_directory') else '',
                                               'undo_of':batch_id,'restore_item_path':details['item_path'],'original_operation_id':op.id,'partial_undo':op.item_id in partial_items})
