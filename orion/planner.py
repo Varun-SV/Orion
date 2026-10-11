@@ -115,6 +115,9 @@ class Planner:
                 continue
             from orion.profiles import Profiles
             profile = options.profile if options.profile_id or options.profile != NamingProfile() else Profiles(self.library).get('default-'+item.kind)
+            if profile.kind not in ('auto', item.kind):
+                issue('profile_kind_mismatch','This naming preset belongs to '+profile.kind+', not '+item.kind,iid)
+                continue
             item_options = options.model_copy(update={'profile':profile})
             source = Path(item.path)
             source_root = Path(sources[item.source_id]['path'])
@@ -213,7 +216,15 @@ class Planner:
                 child = item.model_copy(update={'path':str(file),'signature':expected,'metadata':metadata,
                                                 'decision':MatchDecision(item_id=item.id,provider=item.decision.provider,provider_id=item.decision.provider_id,metadata=metadata,evidence=item.decision.evidence)})
                 rendered = Path(Naming.render(child,options.profile).path)
-                target = folder_target/file.relative_to(source).parent/rendered.name if item.kind in ('movies','anime_films') else folder_target.joinpath(*(rendered.parts[1:] if len(rendered.parts)>1 else (rendered.name,)))
+                folder_parts = Path(folder).parts
+                # Only remove the rendered show/film folder when it actually
+                # matches this item's chosen folder layout. Custom prefixes
+                # (e.g. Specials/) remain part of the destination.
+                child_parts = rendered.parts
+                relative_parts = child_parts[len(folder_parts):] if child_parts[:len(folder_parts)] == folder_parts else child_parts
+                relative_child = Path(*relative_parts) if relative_parts else Path(rendered.name)
+                target = (folder_target/file.relative_to(source).parent/relative_child
+                          if item.kind in ('movies','anime_films') else folder_target/relative_child)
                 mappings[relative] = target
         result = []
         for relative,expected in children.items():
