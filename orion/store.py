@@ -133,8 +133,15 @@ class Store:
         def source_for(path, old_id=None):
             if old_id in source_map:
                 return source_map[old_id]
+            # Match root sources as well as nested sources by path segments.
+            def contained_source(candidate, root):
+                candidate, root = normalized(candidate), normalized(root)
+                try:
+                    return os.path.commonpath((candidate, root)) == root
+                except ValueError:  # Different Windows volumes
+                    return False
             matched = [(r['path'], r['id']) for r in conn.execute('SELECT * FROM orion_sources')
-                       if normalized(path).startswith(normalized(r['path']) + os.sep)]
+                       if contained_source(path, r['path'])]
             if matched:
                 return max(matched, key=lambda r: len(r[0]))[1]
             root = str(Path(path).parent)
