@@ -63,7 +63,9 @@ class Services:
 
     def test_provider(self,payload,context):
         provider = payload['provider']
-        revision = payload.get('provider_revision')
+        # API submissions pin a revision at queue time; direct/legacy calls
+        # pin it at execution time to preserve supported job retries.
+        revision = payload.get('provider_revision',self.config.key_revision(provider))
         with self.config._lock:
             if revision != self.config.key_revision(provider):
                 raise ProviderError('provider_configuration_changed',provider)
