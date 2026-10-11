@@ -158,3 +158,23 @@ def test_directory_backed_movie_keeps_custom_rendered_subfolders(library,tmp_pat
     assert 'Specials' in Path(movie.destination).parts
     assert Path(movie.destination).parent.name=='Specials'
     assert not custom.issues
+
+
+def test_series_default_title_folder_uses_single_folder_with_year(library,tmp_path):
+    from orion.discovery import signature
+    from orion.models import MediaItem
+    from orion.planner import Planner
+    folder=tmp_path/'original'
+    folder.mkdir()
+    episode=folder/'Film.S01E02.mkv'
+    episode.write_bytes(b'fixture')
+    item=MediaItem(id='series',source_id='source',path=str(folder),kind='series',
+                   signature=signature(folder),
+                   decision=MatchDecision(item_id='series',metadata={'title':'Film','year':'2020'}))
+    planner=Planner(library)
+    options=PlanOptions(profile=NamingProfile())
+    pairs,target=planner._layout(item,options,tmp_path/'output',set())
+    assert target.name=='Film (2020)'
+    planned=next(dst for src,dst,expected in pairs if src==episode)
+    assert planned.relative_to(target).parts[0]=='Season 01'
+    assert 'Film' not in planned.relative_to(target).parts[:-1]
