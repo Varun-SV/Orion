@@ -35,8 +35,8 @@ class Context:
             conn.execute('UPDATE orion_jobs SET progress=?,updated_at=? WHERE id=?',(json.dumps(progress),utcnow(),self.job_id))
 
 class JobManager:
-    def __init__(self,store,services):
-        self.store,self.services = store,services
+    def __init__(self,store,services,runtime=None):
+        self.store,self.services,self.runtime = store,services,runtime
         self._lock = threading.RLock()
         self._stopping = threading.Event()
         self._events = {}
@@ -161,10 +161,15 @@ class JobManager:
                     archived=conn.execute('SELECT value FROM orion_settings WHERE key=?',('source_archived_'+sid,)).fetchone()
                     if not source or archived and archived[0]=='true' or job.kind=='watch_scan' and not source['watch']:
                         raise ValueError('Select active sources; resume the paused source before retrying its scan')
+                if job.kind=='provider_test' and self.runtime:
+                    payload['provider_revision']=self.runtime.config.key_revision(payload['provider'])
+                elif job.kind in ('server_test','server_discover','server_refresh','server_hints','episode_gaps') and self.runtime:
+                    payload['server_revision']=self.runtime.server.revision()
                 if job.kind == 'lookup':
                     from orion.library import Library
                     payload['lookup_generation'] = Library.prepare_lookup(
                         conn,payload['item_id'],payload.get('signature'))
+                if job.kind in ('lookup','provider_test','server_test','server_discover','server_refresh','server_hints','episode_gaps'):
                     conn.execute('UPDATE orion_jobs SET payload=? WHERE id=?',(json.dumps(payload),job_id))
                 conn.execute("UPDATE orion_jobs SET state='queued',cancel=0,result=NULL,error=NULL,progress='{}',updated_at=? WHERE id=?",(utcnow(),job_id))
             self._schedule(job_id,job.kind,payload)
