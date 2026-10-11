@@ -41,7 +41,12 @@ def create_app(data_dir:Path|None=None,frontend_dir:Path|None=None) -> FastAPI:
         app.state.services = runtime
         app.state.backup_path = str(backup) if backup else None
         with store.transaction() as conn:
-            unfinished = conn.execute("""SELECT 1 FROM orion_operations WHERE json_extract(data,'$.state') NOT IN ('pending','completed')
+            unfinished = conn.execute("""SELECT 1 FROM orion_operations WHERE json_extract(data,'$.state') IN ('intent','staged','copied','finalised','cancelled')
+                OR (json_extract(data,'$.state')='error' AND
+                    (json_extract(data,'$.verification.final_signature') IS NOT NULL OR
+                     json_extract(data,'$.verification.temp_path') IS NOT NULL OR
+                     json_extract(data,'$.verification.remove_intent')=1 OR
+                     json_extract(data,'$.verification.partial_sha256') IS NOT NULL))
                 UNION ALL SELECT 1 FROM orion_batches WHERE state='running'
                 UNION ALL SELECT 1 FROM orion_jobs j JOIN orion_batches b ON json_extract(j.payload,'$.plan_id')=b.plan_id
                     WHERE j.state='interrupted' AND j.kind IN ('organise','undo','sidecars') LIMIT 1""").fetchone()
