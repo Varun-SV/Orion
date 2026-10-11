@@ -1,11 +1,11 @@
 from typing import Annotated
 from fastapi import APIRouter,Depends,Query
-from orion.models import MatchDecision, Record
+from orion.models import MatchDecision
 from orion.routes.common import services
 from orion.services import Services
 
 class DecisionSubmission(MatchDecision):
-    observed_signature: dict
+    signature_token: str
 
 router = APIRouter(prefix='/api/v1')
 Runtime = Annotated[Services,Depends(services)]
@@ -39,8 +39,8 @@ def item(item_id:str,runtime:Runtime):
 
 @router.put('/items/{item_id}/decision')
 def decision(item_id:str,body:DecisionSubmission,runtime:Runtime):
-    decision = MatchDecision.model_validate(body.model_dump(exclude={'observed_signature'}))
-    return runtime.library.decide(item_id,decision,observed_signature=body.observed_signature)
+    decision = MatchDecision.model_validate(body.model_dump(exclude={'signature_token'}))
+    return runtime.library.decide(item_id,decision,signature_token=body.signature_token)
 
 @router.delete('/items/{item_id}/decision')
 def clear_decision(item_id:str,runtime:Runtime):
