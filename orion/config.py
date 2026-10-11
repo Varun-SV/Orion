@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 from orion.store import is_secret
 
 class Config:
@@ -14,6 +15,10 @@ class Config:
         self._lock = RLock()
         self._keys = {}
         self._session_services = set()
+        # Non-secret process epoch plus per-service counter invalidates queued
+        # tests after credential edits (and after a process restart).
+        self._key_epoch = uuid4().hex
+        self._key_generations = {}
         try:
             self._prefs = json.loads(self._prefs_path.read_text(encoding='utf-8-sig'))
         except FileNotFoundError:
@@ -72,46 +77,54 @@ class Config:
                 if key not in self._prefs:
                     self.set_pref(key, value)
 
-    def get_api_key(self, service):
-        if service not in self._keys:
-            try:
-                import keyring
-                self._keys[service] = keyring.get_password('Orion', service) or ''
-            except Exception:
-                self._keys[service] = ''
-        return self._keys[service]
+    def key_revision(self, service):
+        """Non-secret identity for the current credential generation."""
+        with self._lock:
+            return f'{self._key_epoch}:{self._key_generations.get(service, 0)}'
 
-    def set_api_key(self, service, key, session_only=False):
-        key = key.strip()
-        if session_only:
-            if service not in self._session_services:
+    def get_api_key(self, service):
+        with self._lock:
+            if service not in self._keys:
                 try:
                     import keyring
+                    self._keys[service] = keyring.get_password('Orion', service) or ''
+                except Exception:
+                    self._keys[service] = ''
+            return self._keys[service]
+
+    def set_api_key(self, service, key, session_only=False):
+        with self._lock:
+            key = key.strip()
+            if session_only:
+                if service not in self._session_services:
                     try:
-                        persisted = keyring.get_password('Orion', service)
-                    except keyring.errors.NoKeyringError:
-                        # A fresh session key works without an OS vault, but a
-                        # known saved key must be removed before changing modes.
-                        if self._keys.get(service):
-                            raise
-                        persisted = None
-                    if persisted:
-                        keyring.delete_password('Orion', service)
+                        import keyring
+                        try:
+                            persisted = keyring.get_password('Orion', service)
+                        except keyring.errors.NoKeyringError:
+                            # A fresh session key works without an OS vault, but a
+                            # known saved key must be removed before changing modes.
+                            if self._keys.get(service):
+                                raise
+                            persisted = None
+                        if persisted:
+                            keyring.delete_password('Orion', service)
+                    except Exception as exc:
+                        raise ValueError('Cannot remove saved credential. Restore secure credential storage before choosing session-only.') from exc
+                self._session_services.add(service)
+            else:
+                try:
+                    import keyring
+                    if key:
+                        keyring.set_password('Orion', service, key)
+                    else:
+                        try:
+                            keyring.delete_password('Orion', service)
+                        except keyring.errors.PasswordDeleteError:
+                            pass
                 except Exception as exc:
-                    raise ValueError('Cannot remove saved credential. Restore secure credential storage before choosing session-only.') from exc
-            self._session_services.add(service)
-        else:
-            try:
-                import keyring
-                if key:
-                    keyring.set_password('Orion', service, key)
-                else:
-                    try:
-                        keyring.delete_password('Orion', service)
-                    except keyring.errors.PasswordDeleteError:
-                        pass
-            except Exception as exc:
-                raise ValueError('Secure credential storage unavailable. Choose session-only explicitly.') from exc
-            self._session_services.discard(service)
-        self._keys[service] = key
-        return {'configured':bool(key),'storage':'session' if session_only else 'keychain'}
+                    raise ValueError('Secure credential storage unavailable. Choose session-only explicitly.') from exc
+                self._session_services.discard(service)
+            self._keys[service] = key
+            self._key_generations[service] = self._key_generations.get(service, 0) + 1
+            return {'configured':bool(key),'storage':'session' if session_only else 'keychain'}
