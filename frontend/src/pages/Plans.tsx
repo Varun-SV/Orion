@@ -3,14 +3,21 @@ import { api, json } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useWorkspace } from '../state/WorkspaceProvider';
 import { navigate } from '../state/navigation';
-import { type Plan, type Destination, type Job, type NamingProfile } from '../types';
+import { type Plan, type Destination, type Job, type NamingProfile, type MediaItem, type Page } from '../types';
 import { PlanPreview } from '../components/PlanPreview';
 export function Plans() {
   const { selected, setSelected, currentPlan, setCurrentPlan, settings, refresh } = useWorkspace();
   const { data: plans, error: listError } = useResource<Plan[]>('/plans'),
     { data: destinations } = useResource<Destination[]>('/destinations');
   const { data: profiles } = useResource<NamingProfile[]>('/profiles');
+  const { data: indexed } = useResource<Page<MediaItem>>('/items?limit=500');
   const [profileId, setProfileId] = useState('');
+  const selectedItems = indexed?.items.filter((item) => selected.includes(item.id)) ?? [];
+  const selectionKnown = selectedItems.length === selected.length;
+  const compatibleProfiles = profiles?.filter((profile) =>
+    profile.kind === 'auto' || (selectionKnown && selectedItems.every((item) => item.kind === profile.kind))
+  );
+  const incompatibleProfile = !!profileId && !compatibleProfiles?.some((p) => p.id === profileId);
   const [exclusions, setExclusions] = useState<{ planId: string; ids: string[] }>({
     planId: '',
     ids: [],
@@ -122,12 +129,15 @@ export function Plans() {
             Naming preset
             <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
               <option value="">Default naming</option>
-              {profiles?.map((p) => (
+              {compatibleProfiles?.map((p) => (
                 <option value={p.id} key={p.id}>
                   {p.label} · v{p.version}
                 </option>
               ))}
             </select>
+            {incompatibleProfile && (
+              <p role="alert">The previously selected preset does not support every selected collection. Choose a compatible preset.</p>
+            )}
           </label>
           <div className="form-grid">
             <label className="field">
@@ -165,7 +175,7 @@ export function Plans() {
           <div className="actions">
             <button
               className="primary"
-              disabled={busy || (!inPlace && !destination)}
+              disabled={busy || incompatibleProfile || (!inPlace && !destination)}
               onClick={() => void create()}
             >
               Create preview
