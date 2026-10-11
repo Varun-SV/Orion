@@ -24,6 +24,7 @@ export interface MediaItem {
   kind: Kind;
   status: 'pending' | 'approved' | 'organised' | 'error' | 'unavailable' | 'no_match';
   signature: Metadata;
+  signature_token?: string;
   metadata: Metadata;
   decision: Decision | null;
 }
