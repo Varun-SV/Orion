@@ -81,6 +81,10 @@ class JobManager:
                 raise ValueError('Do not pass credentials in jobs')
             job_id = str(uuid4())
             with self.store.transaction() as conn:
+                if kind == 'lookup':
+                    from orion.library import Library
+                    payload = {**payload, 'lookup_generation':Library.prepare_lookup(
+                        conn, payload['item_id'], payload.get('signature'))}
                 conn.execute('INSERT INTO orion_jobs(id,kind,state,payload,created_at,updated_at) VALUES(?,?,?,?,?,?)',
                              (job_id,kind,'queued',json.dumps(payload),utcnow(),utcnow()))
             self._schedule(job_id,kind,payload)
@@ -157,6 +161,11 @@ class JobManager:
                     archived=conn.execute('SELECT value FROM orion_settings WHERE key=?',('source_archived_'+sid,)).fetchone()
                     if not source or archived and archived[0]=='true' or job.kind=='watch_scan' and not source['watch']:
                         raise ValueError('Select active sources; resume the paused source before retrying its scan')
+                if job.kind == 'lookup':
+                    from orion.library import Library
+                    payload['lookup_generation'] = Library.prepare_lookup(
+                        conn,payload['item_id'],payload.get('signature'))
+                    conn.execute('UPDATE orion_jobs SET payload=? WHERE id=?',(json.dumps(payload),job_id))
                 conn.execute("UPDATE orion_jobs SET state='queued',cancel=0,result=NULL,error=NULL,progress='{}',updated_at=? WHERE id=?",(utcnow(),job_id))
             self._schedule(job_id,job.kind,payload)
         return self.get(job_id)
