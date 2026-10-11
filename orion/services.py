@@ -23,23 +23,29 @@ class Services:
 
     def lookup(self,payload,context):
         item = self.library.get(payload['item_id'])
+        generation = payload.get('lookup_generation')
         try:
             if payload.get('signature') and (item.signature != payload['signature'] or item.decision):
                 return {'item_id':item.id,'skipped':True,'reason':'item_changed'}
+            if 'lookup_generation' not in payload:
+                generation = self.library.begin_lookup(item.id,item.signature)
+            if generation is None or self.library.get(item.id).metadata.get('_lookup_generation') != generation:
+                return {'item_id':item.id,'skipped':True,'reason':'lookup_superseded'}
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
             values=[r.model_dump() for r in candidates]
             if context.cancelled():raise Cancelled()
-            if not self.library.publish_lookup(item.id,item.signature,values,item.decision):
+            if not self.library.publish_lookup(item.id,item.signature,values,item.decision,generation=generation):
                 # A changed file is a failed lookup; a concurrently confirmed
                 # decision simply supersedes a stale result without an error.
                 current = self.library.get(item.id)
                 if current.signature != item.signature:
                     raise ProviderError('item_changed',payload.get('provider') or 'lookup')
-                return {'item_id':item.id,'candidates':[],'skipped':True,'reason':'item_changed'}
+                return {'item_id':item.id,'candidates':[],'skipped':True,
+                        'reason':'lookup_superseded' if current.metadata.get('_lookup_generation') != generation else 'item_changed'}
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
             if context.cancelled():raise Cancelled() from None
-            self.library.lookup_failed(item.id,item.signature,exc.code,item.decision)
+            self.library.lookup_failed(item.id,item.signature,exc.code,item.decision,generation=generation)
             raise
 
     def handlers(self):
