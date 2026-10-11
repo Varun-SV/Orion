@@ -83,7 +83,8 @@ class Services:
                 raise Cancelled()
             if revision != self.config.key_revision(provider):
                 raise ProviderError('provider_configuration_changed',provider)
-            return result
+            self.config.set_pref('provider_health_'+provider,result)
+        return {'provider':provider,**result}
 
     def _test_provider(self,payload,context):
         provider = payload['provider']
@@ -106,5 +107,4 @@ class Services:
             from orion.anidb_titles import search_titles
             search_titles('Example',self.config,context)
             result = {'health':'cached','detail':'Title catalogue available; this is not an authenticated server check.'}
-        self.config.set_pref('provider_health_'+provider,result)
-        return {'provider':provider,**result}
+        return result
