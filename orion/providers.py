@@ -187,6 +187,26 @@ class Providers:
                          'series':series,'series_index':index,'poster_url':f"https://covers.openlibrary.org/b/id/{r['cover_i']}-M.jpg" if r.get('cover_i') else ''}))
         return rows
 
+    def _verify_indexed_audio(self,item,context,provider):
+        if context.cancelled(): raise Cancelled()
+        path=Path(item.path)
+        if any(linked(p) for p in (path,*path.parents)):
+            raise ProviderError('item_changed',provider)
+        if self.store is not None:
+            with self.store.transaction() as conn:
+                row=conn.execute('SELECT path FROM orion_sources WHERE id=?',(item.source_id,)).fetchone()
+            if row is None:
+                raise ProviderError('item_changed',provider)
+            try:
+                path.absolute().relative_to(Path(row['path']).absolute())
+            except ValueError:
+                raise ProviderError('item_changed',provider) from None
+        try:
+            if item.signature.get('type')!='file' or signature(path,context)!=item.signature:
+                raise ProviderError('item_changed',provider)
+        except (OSError,ValueError,KeyError):
+            raise ProviderError('item_changed',provider) from None
+
     def _acoustid(self,item,title,context):
         if not self.config.get_pref('fingerprint_enabled',False):
             raise ProviderError('consent_required','acoustid')
@@ -194,8 +214,9 @@ class Providers:
         from api.acoustid import fingerprint_file, fpcalc_available
         if not fpcalc_available():
             raise ProviderError('fpcalc_required','acoustid')
+        self._verify_indexed_audio(item,context,'acoustid')
         fingerprint = fingerprint_file(item.path)
-        if context.cancelled(): raise Cancelled()
+        self._verify_indexed_audio(item,context,'acoustid')
         if not fingerprint:
             raise ProviderError('fingerprint_failed','acoustid')
         body = self._call('acoustid','POST','https://api.acoustid.org/v2/lookup',context,

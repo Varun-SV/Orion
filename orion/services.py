@@ -29,12 +29,12 @@ class Services:
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
             values=[r.model_dump() for r in candidates]
             if context.cancelled():raise Cancelled()
-            if not self.library.publish_lookup(item.id,item.signature,values):
+            if not self.library.publish_lookup(item.id,item.signature,values,item.decision):
                 raise ProviderError('item_changed',payload.get('provider') or 'lookup')
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
             if context.cancelled():raise Cancelled() from None
-            self.library.lookup_failed(item.id,item.signature,exc.code)
+            self.library.lookup_failed(item.id,item.signature,exc.code,item.decision)
             raise
 
     def handlers(self):

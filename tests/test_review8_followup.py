@@ -157,3 +157,69 @@ def test_stale_server_test_does_not_publish_old_health(library, tmp_path, contex
         server.run('server_test', payload, context)
     assert server.status()['health'] == 'not_checked'
     assert server.configuration().user_id == 'new'
+
+def test_late_lookup_does_not_overwrite_new_decision(library, tmp_path, context):
+    from orion.services import Services
+    root = tmp_path / 'late-lookup'
+    root.mkdir()
+    (root / 'Arrival.mkv').write_bytes(b'fixture')
+    sid = library.add_source(root, kind='movies')['id']
+    Discovery(library).scan([sid], False, context)
+    item = library.query().items[0]
+    cfg = Config(tmp_path / 'late-prefs')
+    cfg.set_api_key('tmdb', 'fixture-key', session_only=True)
+    def result_after_decision(*args, **kwargs):
+        library.decide(item.id, MatchDecision(item_id=item.id, metadata={'title': 'User choice'}))
+        return {'results': [{'id': 99, 'title': 'Late result'}]}
+    services = Services(cfg, library.store, library, None, Providers(cfg, request=result_after_decision), None, None)
+    with pytest.raises(ProviderError) as error:
+        services.lookup({'item_id': item.id, 'provider': 'tmdb'}, context)
+    assert error.value.code == 'item_changed'
+    updated = library.get(item.id)
+    assert updated.status == 'approved' and updated.decision.metadata['title'] == 'User choice'
+    assert not updated.metadata.get('candidates')
+
+
+@pytest.mark.parametrize('replacement', ['before', 'during'])
+def test_acoustid_does_not_submit_a_changed_sample(library, tmp_path, context, monkeypatch, replacement):
+    import api.acoustid as acoustid
+    root = tmp_path / 'fingerprint'
+    root.mkdir()
+    media = root / 'audio.mp3'
+    media.write_bytes(b'original music')
+    sid = library.add_source(root, kind='music')['id']
+    Discovery(library).scan([sid], False, context)
+    item = library.query().items[0]
+    cfg = Config(tmp_path / 'fp-prefs')
+    cfg.set_pref('fingerprint_enabled', True)
+    cfg.set_api_key('acoustid', 'fixture', session_only=True)
+    submitted = []
+    monkeypatch.setattr(acoustid, 'fpcalc_available', lambda: True)
+    def fingerprint(path):
+        if replacement == 'during':
+            Path(path).write_bytes(b'newly replaced music, different bytes')
+        return ('fingerprint', 120)
+    monkeypatch.setattr(acoustid, 'fingerprint_file', fingerprint)
+    if replacement == 'before':
+        media.write_bytes(b'different media before fingerprint')
+    def transport(*args, **kwargs):
+        submitted.append(1)
+        return {'status': 'ok', 'results': []}
+    with pytest.raises(ProviderError) as error:
+        Providers(cfg, request=transport, store=library.store).candidates(item, context, provider='acoustid')
+    assert error.value.code == 'item_changed' and not submitted
+
+
+def test_server_client_rejects_old_revision_after_save(library, tmp_path):
+    runtime = SimpleNamespace(store=library.store, config=Config(tmp_path / 'server-prefs'), providers=None)
+    server = ServerIntegration(runtime)
+    old = ServerSettings(enabled=True, url='http://127.0.0.1:8096', user_id='old')
+    server.save(old)
+    runtime.config.set_api_key('media_server', 'fixture', session_only=True)
+    revision = server.revision()
+    client = server.client({'server_revision': revision})
+    assert client.user_id == 'old'
+    server.save(old.model_copy(update={'url': 'http://127.0.0.1:8097'}))
+    with pytest.raises(ServerError):
+        server.client({'server_revision': revision})
+    client._session.close()

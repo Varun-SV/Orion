@@ -5,6 +5,8 @@ from uuid import uuid4
 from orion.models import MediaItem, MatchDecision, Page, KINDS
 from orion.store import Store, item_id, normalized, safe_metadata, utcnow
 
+_UNSET_DECISION = object()
+
 class Library:
     def __init__(self, store: Store):
         self.store = store
@@ -161,13 +163,13 @@ class Library:
             conn.execute('UPDATE orion_items SET metadata=?,updated_at=? WHERE id=?',(json.dumps(current),utcnow(),item_id))
         return self.get(item_id)
 
-    def publish_lookup(self,item_id,observed_signature,candidates):
+    def publish_lookup(self,item_id,observed_signature,candidates,observed_decision=_UNSET_DECISION):
         # The signature and current decision are read with the same writer
         # transaction that publishes candidates and their resulting status.
         updates=safe_metadata({'candidates':candidates,'lookup_state':'ready' if candidates else 'no_match','lookup_error':None})
         with self.store.transaction() as conn:
             latest=self.from_row(conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone())
-            if latest.signature!=observed_signature:
+            if latest.signature!=observed_signature or (observed_decision is not _UNSET_DECISION and latest.decision!=observed_decision):
                 return False
             metadata={**latest.metadata,**updates}
             next_status = latest.status
@@ -180,13 +182,13 @@ class Library:
                          (json.dumps(metadata),next_status,utcnow(),item_id))
         return True
 
-    def lookup_failed(self, item_id, observed_signature, code):
+    def lookup_failed(self, item_id, observed_signature, code, observed_decision=_UNSET_DECISION):
         # Read and update under one writer transaction: confirmation/organisation
         # may have completed while a bounded provider request was in flight.
         with self.store.transaction() as conn:
             row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item_id,)).fetchone()
             latest=self.from_row(row)
-            if latest.signature != observed_signature:
+            if latest.signature != observed_signature or (observed_decision is not _UNSET_DECISION and latest.decision != observed_decision):
                 return latest
             metadata={**latest.metadata,'lookup_state':'error','lookup_error':code}
             conn.execute("UPDATE orion_items SET metadata=?,status=CASE WHEN decision IS NULL THEN 'error' ELSE status END,updated_at=? WHERE id=?",

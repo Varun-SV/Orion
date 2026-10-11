@@ -48,10 +48,14 @@ class ServerIntegration:
             return self.status()
 
     def client(self,payload):
-        if payload.get('server_revision')!=self.revision():raise ServerError('server_configuration_changed')
-        config=self.configuration()
-        if not config.enabled or not config.url:raise ServerError('server_not_configured')
-        return MediaServerClient(config.url,self.runtime.config.get_api_key('media_server'),config.server_type,config.user_id)
+        # Settings and their revision are one snapshot. A concurrent save
+        # must never pair an old queued job with a replacement server URL.
+        with self.runtime.config._lock:
+            if payload.get('server_revision')!=self.revision():raise ServerError('server_configuration_changed')
+            config=self.configuration()
+            if not config.enabled or not config.url:raise ServerError('server_not_configured')
+            key=self.runtime.config.get_api_key('media_server')
+            return MediaServerClient(config.url,key,config.server_type,config.user_id)
 
     def submit(self,kind,payload=None):
         return self.runtime.jobs.submit(kind,{**(payload or {}),'server_revision':self.revision()})
