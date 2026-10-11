@@ -7,7 +7,7 @@ from typing import Literal
 from uuid import uuid4
 from pydantic import Field
 from orion.models import Record,MediaItem,MatchDecision,Operation,OperationPlan,PlanIssue
-from orion.naming import Naming,NamingProfile,valid_relative
+from orion.naming import Naming,NamingProfile,valid_relative,clean
 from orion.discovery import signature,linked,VIDEO,parsed_metadata
 from orion.store import normalized,utcnow
 
@@ -241,7 +241,14 @@ class Planner:
                 # matches this item's chosen folder layout. Custom prefixes
                 # (e.g. Specials/) remain part of the destination.
                 child_parts = rendered.parts
-                relative_parts = child_parts[len(folder_parts):] if child_parts[:len(folder_parts)] == folder_parts else child_parts
+                if child_parts[:len(folder_parts)] == folder_parts:
+                    relative_parts = child_parts[len(folder_parts):]
+                elif child_parts and child_parts[0] == clean(item.decision.metadata.get('title') or item.metadata.get('title','')):
+                    # Default series episode templates use {title}, but the
+                    # rendered show folder may be {title}{year_suffix}.
+                    relative_parts = child_parts[1:]
+                else:
+                    relative_parts = child_parts
                 relative_child = Path(*relative_parts) if relative_parts else Path(rendered.name)
                 target = (folder_target/file.relative_to(source).parent/relative_child
                           if item.kind in ('movies','anime_films') else folder_target/relative_child)
