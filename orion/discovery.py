@@ -189,7 +189,8 @@ class Discovery:
                     if old and old.signature == sig and not deep:
                         seen.add(iid)
                         if old.status == 'unavailable':
-                            self.library.status(iid, 'approved' if old.decision else 'pending')
+                            self.library.status(iid, 'organised' if old.metadata.get('_orion_organised_at') == old.path
+                                                else 'approved' if old.decision else 'pending')
                         report.unchanged += 1
                         continue
                     preserved = old and (old.signature == sig or not old.signature)
