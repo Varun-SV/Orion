@@ -29,7 +29,7 @@ class Services:
                 return {'item_id':item.id,'skipped':True,'reason':'item_changed'}
             if 'lookup_generation' not in payload:
                 generation = self.library.begin_lookup(item.id,item.signature)
-            if generation is None or self.library.get(item.id).metadata.get('_lookup_generation') != generation:
+            if generation is None or self.library.current_lookup_generation(item.id) != generation:
                 return {'item_id':item.id,'skipped':True,'reason':'lookup_superseded'}
             candidates = self.providers.candidates(item,context,provider=payload.get('provider'))
             values=[r.model_dump() for r in candidates]
@@ -41,7 +41,7 @@ class Services:
                 if current.signature != item.signature:
                     raise ProviderError('item_changed',payload.get('provider') or 'lookup')
                 return {'item_id':item.id,'candidates':[],'skipped':True,
-                        'reason':'lookup_superseded' if current.metadata.get('_lookup_generation') != generation else 'item_changed'}
+                        'reason':'lookup_superseded' if self.library.current_lookup_generation(item.id) != generation else 'item_changed'}
             return {'item_id':item.id,'candidates':values}
         except ProviderError as exc:
             if context.cancelled():raise Cancelled() from None
