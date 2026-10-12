@@ -121,7 +121,10 @@ class JobManager:
                 # A cancellation requested after the atomic publication may
                 # not relabel the already-committed server result as cancelled.
                 published = (kind=='server_hints' and result.get('complete') is True
-                             or kind=='episode_gaps' and outcome=='ready')
+                             or kind=='episode_gaps' and outcome=='ready'
+                             or kind=='server_refresh' and result.get('accepted') is True
+                             or kind=='server_test' and 'server' in result and 'users' in result
+                             or kind=='provider_test' and result.get('provider') == payload.get('provider') and 'health' in result)
                 state = 'failed' if outcome in ('failed','partial') else 'cancelled' if outcome=='cancelled' or result.get('cancelled') or (context.cancelled() and outcome!='completed' and not published) else 'completed'
                 error = outcome if state=='failed' else None
         except Cancelled:
