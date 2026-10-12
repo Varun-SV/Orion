@@ -282,3 +282,27 @@ def test_server_submission_saves_durable_identity(library,tmp_path):
     server.submit('episode_gaps',{'series_id':'show'})
     assert captured['payload']['server_identity']==server.mapping_revision()
     assert captured['payload']['server_revision']==server.revision()
+
+
+@pytest.mark.parametrize('kind,result',[
+    ('server_hints',{'complete':True,'items':[]}),
+    ('episode_gaps',{'state':'ready'})
+])
+def test_cancellation_after_committed_server_publication_is_not_mislabelled(library,kind,result):
+    def publish_then_cancel(payload,context):
+        # Simulate a cancellation racing after the service's successful commit
+        # but before JobManager has finalized the job state.
+        context.event.set()
+        return result
+    jobs=JobManager(library.store,{kind:publish_then_cancel})
+    try:
+        job=jobs.submit(kind,{})
+        import time
+        for _ in range(300):
+            current=jobs.get(job.id)
+            if current.state in ('completed','failed','cancelled'):
+                break
+            time.sleep(.01)
+        assert jobs.get(job.id).state=='completed'
+    finally:
+        jobs.shutdown()
