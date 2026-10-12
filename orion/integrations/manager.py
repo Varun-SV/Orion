@@ -132,7 +132,7 @@ class ServerIntegration:
                 item=self.runtime.library.get(payload['item_id'])
                 metadata={**item.metadata,**(item.decision.metadata if item.decision else {})}
                 media_type='Audio' if item.kind=='music' else 'Book' if item.kind=='books' else 'Series' if item.kind in ('series','anime','web_series') else 'Movie'
-                hints=client.items(ServerQuery(search=str(metadata.get('title',''))[:200],include_types=media_type),context)
+                hints=client.items(ServerQuery(search=str(metadata.get('title',''))[:200],include_types=media_type,max_items=30),context)[:30]
                 rows=[]
                 for hint in hints:
                     evidence=['Server search result; content has not been hashed']
