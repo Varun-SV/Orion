@@ -260,6 +260,7 @@ def test_provider_deadline_checks_dribbled_available_bytes(monkeypatch,context):
     response=Response()
     monkeypatch.setattr(requests,'request',lambda *a,**kw:response)
     monkeypatch.setattr(providers,'MAX_PROVIDER_DURATION',.075)
+    monkeypatch.setattr(providers,'LIMITER',SimpleNamespace(acquire=lambda *args:None))
     started=time.monotonic()
     with pytest.raises(ProviderError,match='provider timeout'):
         providers.Providers._request('tmdb','GET','https://invalid.example',context)
