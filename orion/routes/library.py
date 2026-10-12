@@ -1,5 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter,Depends,Query
+from pydantic import BaseModel, Field
 from orion.models import MatchDecision
 from orion.routes.common import services
 from orion.services import Services
@@ -32,6 +33,21 @@ def overview(runtime:Runtime):
 @router.get('/items')
 def items(runtime:Runtime,query:str='',kind:str|None=None,status:str|None=None,offset:int=Query(0,ge=0),limit:int=Query(100,ge=1,le=500)):
     return runtime.library.query(query,kind,status,offset,limit)
+
+class SelectedItems(BaseModel):
+    item_ids: list[str] = Field(min_length=1,max_length=500)
+
+@router.post('/items/selection')
+def selected_items(body:SelectedItems,runtime:Runtime):
+    # Resolve exact selected IDs, irrespective of global pagination/sorting.
+    identifiers=list(dict.fromkeys(body.item_ids))
+    with runtime.store.transaction() as conn:
+        placeholders=','.join('?' for _ in identifiers)
+        rows=conn.execute('SELECT * FROM orion_items WHERE id IN ('+placeholders+')',identifiers).fetchall()
+    found={row['id']:runtime.library.from_row(row) for row in rows}
+    if len(found)!=len(identifiers):
+        raise KeyError('One or more selected items are missing')
+    return [found[identifier] for identifier in identifiers]
 
 @router.get('/items/{item_id}')
 def item(item_id:str,runtime:Runtime):
