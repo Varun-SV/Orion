@@ -45,6 +45,10 @@ export function mockApi(items: MediaItem[] = [], overrides: Record<string, unkno
         if (path === '/session') value = { csrf_token: 'test-csrf' };
         else if (path === '/overview') value = overview;
         else if (path === '/settings') value = { theme: 'ivory', view: 'grid', providers: {} };
+        else if (path === '/items/selection' && method === 'POST') {
+          const ids = (body as { item_ids: string[] }).item_ids;
+          value = ids.map((id) => items.find((item) => item.id === id)).filter(Boolean);
+        }
         else if (path === '/items') {
           let found = items.filter(
             (i) =>
