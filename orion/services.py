@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from contextlib import nullcontext
 import requests
 from orion.config import Config
 from orion.store import Store
@@ -79,14 +80,14 @@ class Services:
             result = self._test_provider(payload,context)
         except (ProviderError,requests.RequestException) as exc:
             error = exc if isinstance(exc,ProviderError) else transport_error(exc,provider)
-            with self.config._lock:
+            with self.config._lock, (getattr(context.event,'publication_lock',nullcontext()) if getattr(context,'event',None) else nullcontext()):
                 if context.cancelled():
                     raise Cancelled() from None
                 if revision != self.config.key_revision(provider):
                     raise ProviderError('provider_configuration_changed',provider) from None
                 self.config.set_pref('provider_health_'+provider,{'health':'unavailable','detail':error.code})
             raise error from None
-        with self.config._lock:
+        with self.config._lock, (getattr(context.event,'publication_lock',nullcontext()) if getattr(context,'event',None) else nullcontext()):
             if context.cancelled():
                 raise Cancelled()
             if revision != self.config.key_revision(provider):
