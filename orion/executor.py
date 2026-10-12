@@ -423,15 +423,19 @@ class Executor:
                     # file paths. Unknown empty directories are residual user
                     # content and must never be silently removed.
                     known_dirs=set()
-                    for relative in group[0].verification.get('item_signature',{}).get('children',{}):
-                        for parent in Path(relative).parents:
+                    for member in group:
+                        try:
+                            relative=Path(member.source).relative_to(root)
+                        except ValueError:
+                            continue
+                        for parent in relative.parents:
                             if str(parent) != '.':
-                                known_dirs.add(parent.as_posix())
+                                known_dirs.add(os.path.normcase(parent.as_posix()))
                     walk_errors=[]
                     for current,dirs,files in os.walk(root,topdown=False,followlinks=False,onerror=walk_errors.append):
                         current_path=Path(current)
                         relative=current_path.relative_to(root).as_posix()
-                        if relative!='.' and relative not in known_dirs:
+                        if relative!='.' and os.path.normcase(relative) not in known_dirs:
                             continue
                         try:
                             current_path.rmdir()
