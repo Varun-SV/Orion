@@ -199,12 +199,20 @@ def test_startup_recovery_ignores_terminal_without_artifacts_and_detects_real_wo
         conn.execute('CREATE TABLE orion_operations(data TEXT)')
         conn.execute('CREATE TABLE orion_batches(state TEXT,plan_id TEXT)')
         conn.execute('CREATE TABLE orion_jobs(kind TEXT,state TEXT,payload TEXT)')
-        for state in ('error','cancelled','intent'):
+        for state in ('error','cancelled'):
             conn.execute('INSERT INTO orion_operations VALUES(?)',(json.dumps({
                 'id':state,'state':state,'source':str(tmp_path/'source.mkv'),
                 'destination':str(tmp_path/'target.mkv'),'verification':{'sha256':'old digest'}
             }),))
     assert needs_startup_recovery(store) is False
+    with store.transaction() as conn:
+        conn.execute('INSERT INTO orion_operations VALUES(?)',(json.dumps({
+            'id':'intent','state':'intent','source':str(tmp_path/'source.mkv'),
+            'destination':str(tmp_path/'target.mkv'),'verification':{}
+        }),))
+    assert needs_startup_recovery(store) is True
+    with store.transaction() as conn:
+        conn.execute("DELETE FROM orion_operations WHERE json_extract(data,'$.state')='intent'")
     (tmp_path/'target.mkv').write_bytes(b'completed during crash')
     assert needs_startup_recovery(store) is True
 
