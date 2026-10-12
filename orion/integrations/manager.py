@@ -1,6 +1,7 @@
 """Persistent server configuration with independently retryable jobs."""
 import hashlib
 import json
+from contextlib import nullcontext
 from pydantic import Field
 from orion.models import Record
 from orion.library import Library
@@ -65,15 +66,28 @@ class ServerIntegration:
             return MediaServerClient(config.url,key,config.server_type,config.user_id)
 
     def submit(self,kind,payload=None):
-        return self.runtime.jobs.submit(kind,{**(payload or {}),'server_revision':self.revision()})
+        with self.runtime.config._lock:
+            # The durable identity survives a process restart but changes when
+            # the selected server/user changes. The revision also pins secrets.
+            snapshot = {**(payload or {}),'server_revision':self.revision(),
+                        'server_identity':self.mapping_revision()}
+        return self.runtime.jobs.submit(kind,snapshot)
 
-    def _publish_hints(self,item,revision,rows,state='ready',error=None):
+    @staticmethod
+    def _publication_guard(context):
+        # Cancellation takes this guard when setting the job event. Thus a
+        # cancelled job cannot publish after the cancel request linearizes.
+        event = getattr(context,'event',None)
+        return getattr(event,'publication_lock',None) or nullcontext()
+
+    def _publish_hints(self,item,revision,rows,state='ready',error=None,context=None):
         updates=safe_metadata({'server_hints':rows,'server_hint_state':state,'server_hint_error':error,
             'server_hint_revision':revision,'server_hint_signature':_signature_fingerprint(item.signature),
             'server_hint_decision':item.decision.model_dump() if item.decision else None})
         # Keep configuration stable while checking the current item and merging
         # hints in the same writer transaction; other annotations remain intact.
-        with self.runtime.config._lock,self.runtime.store.transaction() as conn:
+        with self.runtime.config._lock,self._publication_guard(context),self.runtime.store.transaction() as conn:
+            if context is not None and context.cancelled():return 'server_hints_cancelled'
             if revision!=self.revision():return 'server_configuration_changed'
             row=conn.execute('SELECT * FROM orion_items WHERE id=?',(item.id,)).fetchone()
             if row is None:return 'item_changed'
@@ -127,28 +141,30 @@ class ServerIntegration:
                     elif hint.name.casefold()==str(metadata.get('title','')).casefold():evidence.append('Title agrees; identity needs review')
                     rows.append({**hint.model_dump(),'evidence':evidence})
                 if context.cancelled():raise ServerError('server_hints_cancelled')
-                changed=self._publish_hints(item,payload['server_revision'],rows)
+                changed=self._publish_hints(item,payload['server_revision'],rows,context=context)
                 if changed:raise ServerError(changed)
                 return {'item_id':item.id,'items':rows,'complete':True}
             if kind=='episode_gaps':
                 mapping=ProviderMapping.model_validate(payload['mapping'])
                 report=EpisodeGaps(client,self.catalogue).compare(payload['series_id'],mapping,payload.get('include_specials',False),context)
                 # Publish only while the submitted server identity is still current.
-                with self.runtime.config._lock:
+                with self.runtime.config._lock,self._publication_guard(context):
                     if payload['server_revision']!=self.revision():raise ServerError('server_configuration_changed')
                     if context.cancelled():raise ServerError('server_gaps_cancelled')
                     if report.state=='ready':
                         with self.runtime.store.transaction() as conn:
+                            if context.cancelled():raise ServerError('server_gaps_cancelled')
                             conn.execute('INSERT OR REPLACE INTO orion_settings VALUES(?,?)',('server_mapping_'+self.mapping_revision()+'_'+payload['series_id'],mapping.model_dump_json()))
                 return report
             raise ValueError('Unknown server job')
         except ProviderError as exc:
             with self.runtime.config._lock:
-                if payload['server_revision']==self.revision() and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled'):
+                if payload['server_revision']==self.revision() and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled','server_hints_cancelled','server_gaps_cancelled'):
                     self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
             if kind=='server_hints' and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_hints_cancelled'):
                 if context.cancelled():raise ServerError('server_hints_cancelled') from exc
-                self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code)
+                changed=self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code,context=context)
+                if changed:raise ServerError(changed) from exc
             raise
 
     def after_local_success(self,result):
