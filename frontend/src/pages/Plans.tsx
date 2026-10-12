@@ -1,19 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, json } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useWorkspace } from '../state/WorkspaceProvider';
 import { navigate } from '../state/navigation';
-import { type Plan, type Destination, type Job, type NamingProfile, type MediaItem, type Page } from '../types';
+import { type Plan, type Destination, type Job, type NamingProfile, type MediaItem } from '../types';
 import { PlanPreview } from '../components/PlanPreview';
 export function Plans() {
   const { selected, setSelected, currentPlan, setCurrentPlan, settings, refresh } = useWorkspace();
   const { data: plans, error: listError } = useResource<Plan[]>('/plans'),
     { data: destinations } = useResource<Destination[]>('/destinations');
   const { data: profiles } = useResource<NamingProfile[]>('/profiles');
-  const { data: indexed } = useResource<Page<MediaItem>>('/items?limit=500');
   const [profileId, setProfileId] = useState('');
-  const selectedItems = indexed?.items.filter((item) => selected.includes(item.id)) ?? [];
-  const selectionKnown = selectedItems.length === selected.length;
+  const [resolved, setResolved] = useState<{ key: string; items: MediaItem[] }>({ key: '', items: [] });
+  const [selectionError, setSelectionError] = useState('');
+  const selectionKey = selected.join('|');
+  useEffect(() => {
+    let mounted = true;
+    if (!selected.length) {
+      setResolved({ key: '', items: [] });
+      setSelectionError('');
+      return;
+    }
+    setSelectionError('');
+    void api<MediaItem[]>('/items/selection', json('POST', { item_ids: selected }))
+      .then((items) => { if (mounted) setResolved({ key: selectionKey, items }); })
+      .catch((error: Error) => { if (mounted) setSelectionError(error.message); });
+    return () => { mounted = false; };
+  }, [selectionKey]);
+  const selectedItems = resolved.key === selectionKey ? resolved.items : [];
+  const selectionKnown = selectedItems.length === selected.length &&
+    selected.every((id) => selectedItems.some((item) => item.id === id));
   const compatibleProfiles = profiles?.filter((profile) =>
     profile.kind === 'auto' || (selectionKnown && selectedItems.every((item) => item.kind === profile.kind))
   );
@@ -125,6 +141,7 @@ export function Plans() {
         <section className="panel">
           <h2>Create a preview</h2>
           <p className="subtitle">{selected.length} confirmed items selected</p>
+          {selectionError && <p role="alert">{selectionError}</p>}
           <label className="field">
             Naming preset
             <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
