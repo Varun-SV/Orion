@@ -92,6 +92,7 @@ class JobManager:
 
     def _schedule(self,job_id,kind,payload):
         event = threading.Event()
+        event.publication_lock = threading.RLock()
         self._events[job_id] = event
         pool = self._writer if kind in WRITERS else self._readers
         pool.submit(self._run,job_id,kind,payload,event)
@@ -142,7 +143,8 @@ class JobManager:
                 return job
             event = self._events.get(job_id)
             if event:
-                event.set()
+                with event.publication_lock:
+                    event.set()
             with self.store.transaction() as conn:
                 conn.execute("UPDATE orion_jobs SET cancel=1,state='cancelling',updated_at=? WHERE id=? AND state NOT IN ('completed','failed','cancelled','interrupted')",(utcnow(),job_id))
         return self.get(job_id)
@@ -161,10 +163,17 @@ class JobManager:
                     archived=conn.execute('SELECT value FROM orion_settings WHERE key=?',('source_archived_'+sid,)).fetchone()
                     if not source or archived and archived[0]=='true' or job.kind=='watch_scan' and not source['watch']:
                         raise ValueError('Select active sources; resume the paused source before retrying its scan')
+                if (job.kind in ('server_test','server_discover','server_refresh','server_hints','episode_gaps')
+                    and self.runtime and job.kind != 'server_test'):
+                    saved_identity=payload.get('server_identity')
+                    if not saved_identity or saved_identity != self.runtime.server.mapping_revision():
+                        raise ValueError('Server configuration changed since the original job; submit a new job')
                 if job.kind=='provider_test' and self.runtime:
                     payload['provider_revision']=self.runtime.config.key_revision(payload['provider'])
                 elif job.kind in ('server_test','server_discover','server_refresh','server_hints','episode_gaps') and self.runtime:
                     payload['server_revision']=self.runtime.server.revision()
+                    if hasattr(self.runtime.server,'mapping_revision'):
+                        payload['server_identity']=self.runtime.server.mapping_revision()
                 if job.kind == 'lookup':
                     from orion.library import Library
                     payload['lookup_generation'] = Library.prepare_lookup(
@@ -180,7 +189,8 @@ class JobManager:
             if self._stopping.is_set():
                 return
             for job_id,event in list(self._events.items()):
-                event.set()
+                with event.publication_lock:
+                    event.set()
                 with self.store.transaction() as conn:
                     conn.execute('UPDATE orion_jobs SET cancel=1,updated_at=? WHERE id=?',(utcnow(),job_id))
             self._stopping.set()
