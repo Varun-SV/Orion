@@ -13,6 +13,22 @@ import {
 import { Dialog } from './Dialog';
 import { Cover } from './MediaCard';
 import { ServerHints } from './ServerHints';
+// Only metadata about media belongs in a confirmed user decision.
+// Operational annotations contain cached results and nested prior decisions.
+const decisionFields = new Set([
+  'title', 'year', 'filename', 'format', 'quality', 'season', 'episode',
+  'episode_title', 'episode_end', 'artist', 'album', 'track_number',
+  'disc_number', 'duration', 'release_mbid', 'recording_id', 'author',
+  'series', 'series_index', 'isbn', 'plot', 'overview', 'genre', 'genres',
+  'language', 'poster_url', 'backdrop_url', 'release_date', 'air_date',
+  'episode_provider_id', 'fingerprint_score', 'song_link', 'embedded',
+  'edition', 'resolution', 'imdb_id', 'tmdb_id', 'tvdb_id',
+]);
+function decisionMetadata(value: Record<string, unknown> | undefined) {
+  return Object.fromEntries(
+    Object.entries(value ?? {}).filter(([key]) => decisionFields.has(key)),
+  );
+}
 interface Lookup {
   items: Candidate[];
   state: string;
@@ -62,13 +78,13 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
     }
   }
   const selectedMetadata = {
-    ...item.metadata,
-    ...(choice?.metadata ?? item.decision?.metadata ?? {}),
+    ...decisionMetadata(item.metadata),
+    ...decisionMetadata(choice?.metadata ?? item.decision?.metadata ?? {}),
   };
   function selectCandidate(candidate: Candidate | null) {
     const metadata = {
-      ...item.metadata,
-      ...(candidate?.metadata ?? item.decision?.metadata ?? {}),
+      ...decisionMetadata(item.metadata),
+      ...decisionMetadata(candidate?.metadata ?? item.decision?.metadata ?? {}),
     };
     setChoice(candidate);
     setName(candidate?.title ?? text(metadata.title, title(item)));
@@ -87,7 +103,7 @@ export function MatchDialog({ item, close }: { item: MediaItem; close: () => voi
         year,
         filename,
       };
-      delete (metadata as Record<string, unknown>).candidates;
+
       await api(
         '/items/' + item.id + '/decision',
         json('PUT', {
