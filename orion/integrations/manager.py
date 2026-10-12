@@ -164,7 +164,11 @@ class ServerIntegration:
             if kind=='server_hints' and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_hints_cancelled'):
                 if context.cancelled():raise ServerError('server_hints_cancelled') from exc
                 changed=self._publish_hints(item,payload['server_revision'],[],'unavailable',exc.code,context=context)
-                if changed:raise ServerError(changed) from exc
+                if changed=='server_hints_cancelled':
+                    raise ServerError(changed) from exc
+                # An item/configuration changed while the request was in
+                # flight: don't publish its hints, but retain the *original*
+                # provider exception for the caller and job history.
             raise
 
     def after_local_success(self,result):
