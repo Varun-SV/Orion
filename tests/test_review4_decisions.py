@@ -55,11 +55,14 @@ def test_confirming_other_states_still_approves_metadata(library, tmp_path, cont
 
     result = library.decide(item_id, decision)
 
-    assert result.status == 'approved'
+    # An unavailable item cannot re-enter the organisation queue until a
+    # source scan actually rediscovers its path.
+    expected = 'unavailable' if status == 'unavailable' else 'approved'
+    assert result.status == expected
     assert result.decision == decision
     assert result.path == before.path
     assert result.signature == before.signature
     assert library.get(item_id) == result
-    assert library.query(status='approved').total == 1
+    assert library.query(status='approved').total == (0 if status == 'unavailable' else 1)
     assert library.query(status='review').total == 0
     assert source.read_bytes() == b'original media bytes'
