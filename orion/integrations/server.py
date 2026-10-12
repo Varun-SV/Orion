@@ -24,6 +24,7 @@ class ServerQuery(Record):
     search:str=Field(default='',max_length=200)
     include_types:str='Movie,Series,Audio,MusicAlbum,Book'
     parent_id:str=''
+    max_items:int|None=Field(default=None,ge=1,le=100000)
 class ServerItem(Record):
     id:str
     name:str
@@ -131,7 +132,7 @@ class MediaServerClient:
         if not self.user_id:raise ServerError('server_user_context_required')
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',str(self.user_id)):raise ValueError('Invalid server user ID')
         params={'UserId':self.user_id,'Recursive':'true','IncludeItemTypes':query.include_types,'Fields':'ProviderIds,Path,MediaSources,MediaStreams',
-            'SortBy':'SortName','SortOrder':'Ascending','Limit':50,'EnableTotalRecordCount':'true','EnableImages':'false'}
+            'SortBy':'SortName','SortOrder':'Ascending','Limit':min(50,query.max_items or 50),'EnableTotalRecordCount':'true','EnableImages':'false'}
         if query.search:params['SearchTerm']=query.search
         if query.parent_id:params['ParentId']=query.parent_id
         if query.include_types=='Episode':params.update(IsMissing='false',ExcludeLocationTypes='Virtual')
@@ -153,11 +154,13 @@ class MediaServerClient:
                 parsed=self.parse(item)
                 if parsed.id in seen:raise ServerError('incomplete_pagination')
                 seen.add(parsed.id);records.append(parsed)
+                if query.max_items is not None and len(records)>=query.max_items:
+                    return records
             context.progress('Reading server library',len(records),total or len(records))
             if total is not None and len(records)>=total:
                 if len(records)!=total:raise ServerError('incomplete_pagination')
                 return records
-            if total is None and len(raw)<50:return records
+            if total is None and len(raw)<params['Limit']:return records
         raise ServerError('server_response_limit')
 
     def episodes(self,series_id,context):
