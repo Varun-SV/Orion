@@ -200,10 +200,13 @@ def test_selection_endpoint_looks_up_ids_beyond_first_page(tmp_path):
     with TestClient(create_app(tmp_path),base_url='http://127.0.0.1:4321') as client:
         client.headers['X-Orion-CSRF']=client.get('/api/v1/session').json()['csrf_token']
         runtime=client.app.state.services
+        source=tmp_path/'media'
+        source.mkdir()
+        sid=runtime.library.add_source(source,kind='movies')['id']
         with runtime.store.transaction() as conn:
             for index in range(505):
                 conn.execute('INSERT INTO orion_items VALUES(?,?,?,?,?,?,?,?,?)',(
-                    'item-'+str(index),'src','/media/'+str(index).zfill(4)+'.mkv',
+                    'item-'+str(index),sid,str(source/(str(index).zfill(4)+'.mkv')),
                     'movies','approved','{}',json.dumps({'title':'Video'}),None,'now'))
         selected=['item-504','item-1']
         response=client.post('/api/v1/items/selection',json={'item_ids':selected})
