@@ -150,14 +150,14 @@ class Library:
                 if row is None:raise KeyError('Item not found')
                 if self.from_row(row).signature_token != signature_token:
                     raise ValueError('Item changed since review; reload and confirm the current media')
-            changed=conn.execute("UPDATE orion_items SET decision=?,status=CASE WHEN status='organised' THEN status ELSE 'approved' END,updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
+            changed=conn.execute("UPDATE orion_items SET decision=?,status=CASE WHEN status IN ('organised','unavailable') THEN status ELSE 'approved' END,updated_at=? WHERE id=?",(decision.model_dump_json(),utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
         return self.get(item_id)
 
     def clear_decision(self,item_id):
         with self.store.transaction() as conn:
             self._ensure_decision_editable(conn,item_id)
-            changed=conn.execute("UPDATE orion_items SET decision=NULL,status=CASE WHEN status='organised' THEN status ELSE 'pending' END,updated_at=? WHERE id=?",(utcnow(),item_id)).rowcount
+            changed=conn.execute("UPDATE orion_items SET decision=NULL,status=CASE WHEN status IN ('organised','unavailable') THEN status ELSE 'pending' END,updated_at=? WHERE id=?",(utcnow(),item_id)).rowcount
             if not changed:raise KeyError('Item not found')
         return self.get(item_id)
 
