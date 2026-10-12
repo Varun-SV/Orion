@@ -117,7 +117,7 @@ class ServerIntegration:
             if kind=='server_test':
                 info=client.test_connection(context)
                 users=client.users(context)
-                with self.runtime.config._lock:
+                with self.runtime.config._lock,self._publication_guard(context):
                     if payload['server_revision'] != self.revision():
                         raise ServerError('server_configuration_changed')
                     if context.cancelled():
