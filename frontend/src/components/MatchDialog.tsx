@@ -20,7 +20,8 @@ const decisionFields = new Set([
   'episode_title', 'episode_end', 'artist', 'album', 'track_number',
   'disc_number', 'duration', 'release_mbid', 'recording_id', 'author',
   'series', 'series_index', 'isbn', 'plot', 'overview', 'genre', 'genres',
-  'language', 'poster_url', 'backdrop_url', 'release_date', 'air_date',
+  'language', 'poster_url', 'backdrop_url', 'cover_url', 'artwork_url',
+  'release_date', 'air_date',
   'episode_provider_id', 'fingerprint_score', 'song_link', 'embedded',
   'edition', 'resolution', 'imdb_id', 'tmdb_id', 'tvdb_id',
 ]);
