@@ -1,0 +1,196 @@
+import { useState } from 'react';
+import { api, json } from '../api/client';
+import { useResource } from '../api/useResource';
+import { useWorkspace } from '../state/WorkspaceProvider';
+import { navigate } from '../state/navigation';
+import { type Job, type Plan, type Batch, type Operation, active, bytes, text } from '../types';
+export function Jobs() {
+  const { jobs, jobsError, refresh, setCurrentPlan } = useWorkspace();
+  const { data: batches } = useResource<Batch[]>('/batches');
+  const [error, setError] = useState(''),
+    [busy, setBusy] = useState(''),
+    [operations, setOperations] = useState<Operation[] | null>(null);
+  async function command(job: Job, verb: 'cancel' | 'retry') {
+    setBusy(job.id);
+    setError('');
+    try {
+      await api<Job>('/jobs/' + job.id + '/' + verb, { method: 'POST' });
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function undo(batchId: string) {
+    setBusy(batchId);
+    setError('');
+    try {
+      setCurrentPlan(await api<Plan>('/batches/' + batchId + '/undo-plan', { method: 'POST' }));
+      refresh();
+      navigate('plans');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function details(batchId: string) {
+    const batch = batches?.find((b) => b.id === batchId);
+    if (!batch) {
+      setError('Reload to load this batch history.');
+      refresh();
+      return;
+    }
+    try {
+      setOperations(await api<Operation[]>('/plans/' + batch.plan_id + '/operations'));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  return (
+    <>
+      {(jobsError || error) && <p role="alert">{error || jobsError}</p>}
+      <p className="notice">
+        Progress is stored on this computer. Closing this window leaves jobs running. Cancellation
+        checks between files and copy blocks; provider calls may finish their bounded request first.
+      </p>
+      {!jobs.length && (
+        <section className="empty">
+          <h2>No jobs yet</h2>
+          <p>Scan a source or execute a reviewed preview to begin.</p>
+        </section>
+      )}
+      {jobs.map((job) => {
+        const p = job.progress,
+          done = Number(p.items_done ?? 0),
+          total = Number(p.items_total ?? 0),
+          percent = total ? Math.min(100, (done / total) * 100) : 0;
+        const completed = Array.isArray(job.result?.completed_operation_ids)
+            ? job.result.completed_operation_ids.length
+            : 0,
+          failed = Array.isArray(job.result?.failed_operation_ids)
+            ? job.result.failed_operation_ids.length
+            : 0,
+          pending = Array.isArray(job.result?.pending_operation_ids)
+            ? job.result.pending_operation_ids.length
+            : 0;
+        const batchId = text(job.result?.batch_id);
+        return (
+          <article className="panel job-card" key={job.id}>
+            <div className="section-head">
+              <h2>{job.kind.replaceAll('_', ' ')}</h2>
+              <span className={'state state-' + job.state} role="status">
+                {job.result?.state === 'partial'
+                  ? 'Partial restoration or organisation'
+                  : job.state === 'completed'
+                    ? 'Operation complete'
+                    : job.state}
+              </span>
+            </div>
+            <p className="job-id">{job.id}</p>
+            {p.phase && <p>{p.phase}</p>}
+            {total > 0 && (
+              <>
+                <progress aria-label={job.kind + ' item progress'} value={done} max={total} />
+                <p className="subtitle">
+                  {done} of {total} items · {Math.round(percent)}%
+                </p>
+              </>
+            )}
+            {!!p.bytes_total && (
+              <p>
+                {bytes(p.bytes_done ?? 0)} of {bytes(p.bytes_total)}
+              </p>
+            )}
+            {!!p.bytes_total && (
+              <p className="notice">Copying → verifying → finalising → source removal</p>
+            )}
+            {Array.isArray(job.result?.completed_operation_ids) && (
+              <p className="result-summary">
+                {completed} completed · {failed} failed · {pending} pending
+                {Array.isArray(job.result?.skipped_operation_ids) &&
+                  job.result.skipped_operation_ids.length > 0 &&
+                  ` · ${job.result.skipped_operation_ids.length} explicitly left unchanged`}
+              </p>
+            )}
+            {Array.isArray(job.result?.recovery_item_ids) &&
+              job.result.recovery_item_ids.length > 0 && (
+                <p className="notice" role="alert">
+                  {job.result.recovery_item_ids.length} item(s) have files in both locations. Review
+                  the item recovery paths before organising again.
+                </p>
+              )}
+            {job.error && <p className="job-error">{job.error}</p>}
+            {job.state === 'interrupted' && (
+              <p className="notice">
+                The engine stopped before this job finished. Recovered operations are retained;
+                retry rechecks pending members.
+              </p>
+            )}
+            <div className="actions">
+              <a className="secondary" href={'/api/v1/jobs/' + job.id + '/report?format=csv'}>
+                Export CSV
+              </a>
+              <a className="secondary" href={'/api/v1/jobs/' + job.id + '/report?format=json'}>
+                Export JSON
+              </a>
+              {active(job) && (
+                <button
+                  className="secondary"
+                  disabled={busy === job.id || job.state === 'cancelling'}
+                  onClick={() => void command(job, 'cancel')}
+                >
+                  Cancel job
+                </button>
+              )}
+              {['failed', 'cancelled', 'interrupted'].includes(job.state) && (
+                <button
+                  className="secondary"
+                  disabled={busy === job.id}
+                  onClick={() => void command(job, 'retry')}
+                >
+                  Retry job
+                </button>
+              )}
+              {batchId && (
+                <>
+                  {['organise', 'sidecars'].includes(job.kind) && (
+                    <button
+                      className="secondary"
+                      disabled={busy === batchId}
+                      onClick={() => void undo(batchId)}
+                    >
+                      Preview undo
+                    </button>
+                  )}
+                  <button className="text-button" onClick={() => void details(batchId)}>
+                    Operation details
+                  </button>
+                </>
+              )}
+            </div>
+          </article>
+        );
+      })}
+      {operations && (
+        <section className="panel">
+          <div className="section-head">
+            <h2>Operation details</h2>
+            <button className="text-button" onClick={() => setOperations(null)}>
+              Close details
+            </button>
+          </div>
+          {operations.map((op) => (
+            <div className="preview-item" key={op.id}>
+              <strong>{op.state}</strong>
+              <p className="path-text">{op.source}</p>
+              <p className="path-text">→ {op.destination}</p>
+              {!!op.verification.error && <p>{text(op.verification.error)}</p>}
+            </div>
+          ))}
+        </section>
+      )}
+    </>
+  );
+}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Installation guide for the local Orion media workspace."
+    />
+    <title>Installation guide · Orion</title>
+    <link rel="icon" href="/Orion/favicon.svg" />
+    <link rel="stylesheet" href="/Orion/docs/document.css" />
+  </head>
+  <body>
+    <a class="back" href="/Orion/#install">← Orion project site</a>
+    <main>
+      <p class="eyebrow">ORION / LOCAL WORKSPACE</p>
+      <h1>Installation guide</h1>
+      <p>
+        Orion runs on your computer and serves its interface in your browser.
+        This guide covers the modern source build. No published installer is
+        linked here. Check the repository for current release availability;
+        draft release artifacts are for maintainer review.
+      </p>
+      <h2>Requirements</h2>
+      <p>
+        Use Python 3.11 or 3.12, Node.js 24 and Git. Node is needed to compile
+        the UI. The compiled app uses the Python runtime and does not need a
+        running Vite server. A Windows bundle is unsigned unless its release
+        notes explicitly say otherwise. Native macOS and Linux packaging has not
+        been verified.
+      </p>
+      <h2>Build and launch</h2>
+      <pre><code>git clone https://github.com/Varun-SV/Orion.git
+cd Orion
+python -m venv .venv
+
+# Activate on Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Activate on macOS / Linux instead:
+# source .venv/bin/activate
+
+python -m pip install -r requirements-web.txt
+npm --prefix frontend ci
+npm --prefix frontend run build
+python -m orion run --frontend-dir frontend/dist</code></pre>
+      <p>
+        The launcher opens a URL bound to <code>127.0.0.1</code>. Complete
+        first-run setup, select your source and destination folders, and review
+        items before approving a plan. Keep the launcher terminal open while
+        work runs. Closing the browser alone does not stop the backend.
+      </p>
+      <h2>Stop or choose another port</h2>
+      <pre><code>python -m orion stop
+python -m orion run --port 8766 --frontend-dir frontend/dist</code></pre>
+      <p>
+        If the default port is occupied, choose another port. Orion recognises
+        an existing instance for the same data directory. To isolate a test
+        library, pass <code>--data-dir ./orion-test-data</code> to both run and
+        stop. Do not start testing against your live library.
+      </p>
+      <h2>Credentials and optional services</h2>
+      <p>
+        Metadata and Jellyfin/Emby connections are optional. Add credentials in
+        the installed app. The OS keychain stores them; where secure storage is
+        unavailable, explicitly choose session-only credentials. Music
+        fingerprint identification also needs a separately installed fingerprint
+        tool when configured. Provider or server connectivity is not verified by
+        this public site.
+      </p>
+      <h2>Upgrade</h2>
+      <p>
+        Stop Orion before updating source or replacing a bundle. Back up your
+        media and app data, then rebuild the UI and install the runtime
+        dependencies for the selected version. The database migrator backs up
+        existing databases before schema upgrades and refuses schemas newer than
+        the running version. See the
+        <a href="/Orion/docs/recovery.html">recovery guide</a> before
+        downgrading or restoring.
+      </p>
+    </main>
+    <footer>
+      <a href="/Orion/#recovery">Recovery & privacy</a> ·
+      <a href="https://github.com/Varun-SV/Orion">Source on GitHub</a>
+    </footer>
+  </body>
+</html>
