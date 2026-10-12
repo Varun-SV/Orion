@@ -38,6 +38,10 @@ def needs_startup_recovery(store):
     for row in rows:
         op=json.loads(row['data'])
         details=op.get('verification') or {}
+        # An incomplete intent is a genuine restart boundary even before an
+        # artifact exists. Terminal errors/cancellations require real evidence.
+        if op.get('state')=='intent':
+            return True
         destination=op.get('destination')
         temp=details.get('temp_path')
         # Never repeatedly recover terminal errors or cancellations with no
