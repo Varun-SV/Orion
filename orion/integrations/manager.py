@@ -125,7 +125,10 @@ class ServerIntegration:
                     self.runtime.config.set_pref('server_health',{'health':'connected','detail':info.name+' · '+info.version})
                 return {'server':info.model_dump(),'users':[u.model_dump() for u in users]}
             if kind=='server_discover':
-                items=client.items(ServerQuery.model_validate(payload['query']),context)
+                query=ServerQuery.model_validate(payload['query'])
+                if query.max_items is not None:
+                    raise ValueError('Complete server discovery cannot use a hint-only result limit')
+                items=client.items(query,context)
                 return {'items':[i.model_dump() for i in items],'user_id':client.user_id,'complete':True}
             if kind=='server_refresh':return client.refresh(context)
             if kind=='server_hints':
