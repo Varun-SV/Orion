@@ -77,8 +77,10 @@ def test_undo_retains_sidecars_owned_by_different_album_track(library,tmp_path,c
 
 
 def test_unavailable_confirmation_preserves_source_status(library,tmp_path):
-    src=tmp_path/'sample.mkv';src.write_bytes(b'video')
-    item=MediaItem(id='fixture',source_id='source',path=str(src),kind='movies',
+    root=tmp_path/'source';root.mkdir()
+    sid=library.add_source(root,kind='movies')['id']
+    src=root/'sample.mkv';src.write_bytes(b'video')
+    item=MediaItem(id='fixture',source_id=sid,path=str(src),kind='movies',
                    signature=signature(src),status='unavailable')
     library.upsert(item)
     new=library.decide(item.id,MatchDecision(item_id=item.id,metadata={'title':'Arrival'}),
@@ -114,8 +116,9 @@ def test_server_hint_search_requests_small_transport_limit(library,tmp_path,monk
     server.save(ServerSettings(enabled=True,url='http://127.0.0.1:8096',user_id='user'))
     cfg.set_api_key('media_server','key',session_only=True)
     source=tmp_path/'incoming';source.mkdir()
+    sid=library.add_source(source,kind='movies')['id']
     file=source/'movie.mkv';file.write_bytes(b'film')
-    item=MediaItem(id='movie',source_id='source',path=str(file),kind='movies',
+    item=MediaItem(id='movie',source_id=sid,path=str(file),kind='movies',
                    signature=signature(file),metadata={'title':'Common'})
     library.upsert(item)
     seen=[]
