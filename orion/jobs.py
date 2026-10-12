@@ -118,7 +118,11 @@ class JobManager:
                 if not isinstance(result,dict):
                     result = {'value':result}
                 outcome = result.get('state')
-                state = 'failed' if outcome in ('failed','partial') else 'cancelled' if outcome=='cancelled' or result.get('cancelled') or (context.cancelled() and outcome!='completed') else 'completed'
+                # A cancellation requested after the atomic publication may
+                # not relabel the already-committed server result as cancelled.
+                published = (kind=='server_hints' and result.get('complete') is True
+                             or kind=='episode_gaps' and outcome=='ready')
+                state = 'failed' if outcome in ('failed','partial') else 'cancelled' if outcome=='cancelled' or result.get('cancelled') or (context.cancelled() and outcome!='completed' and not published) else 'completed'
                 error = outcome if state=='failed' else None
         except Cancelled:
             state = 'cancelled'
