@@ -156,3 +156,128 @@ def test_prepublication_failure_without_recovery_artifacts_is_not_actionable():
     conn.execute('INSERT INTO orion_operations VALUES(?)',(json.dumps({'state':'error','verification':{}}),))
     assert conn.execute(sql).fetchone() is None
     conn.close()
+
+
+def test_cancel_while_hints_publication_is_waiting_for_lock(library,tmp_path,context):
+    from threading import Event, Thread
+    from orion.jobs import Context
+    from orion.integrations.server import ServerItem
+    from orion.integrations.manager import ServerIntegration
+    cfg=Config(tmp_path/'server-lock')
+    runtime=SimpleNamespace(store=library.store,config=cfg,providers=None,library=library)
+    server=ServerIntegration(runtime)
+    server.save(ServerSettings(enabled=True,url='http://127.0.0.1:8096'))
+    source=tmp_path/'source';source.mkdir()
+    file=source/'movie.mkv';file.write_bytes(b'film')
+    sid=library.add_source(source,kind='movies')['id']
+    Discovery(library).scan([sid],False,context)
+    item=library.query().items[0]
+    event=__import__('threading').Event()
+    event.publication_lock=__import__('threading').RLock()
+    ctx=SimpleNamespace(event=event,cancelled=event.is_set)
+    waiting=Event();result=[]
+    with event.publication_lock:
+        def write():
+            waiting.set()
+            result.append(server._publish_hints(item,server.revision(),
+                           [{'name':'Wrong server result'}],context=ctx))
+        worker=Thread(target=write)
+        worker.start()
+        assert waiting.wait(3)
+        event.set()
+    worker.join(5)
+    assert not worker.is_alive()
+    assert result==['server_hints_cancelled']
+    assert server.saved_hints(item.id)['state']=='not_checked'
+
+
+def test_startup_recovery_ignores_terminal_without_artifacts_and_detects_real_work(tmp_path):
+    from orion.app import needs_startup_recovery
+    from orion.store import Store
+    store=Store(tmp_path/'journal.sqlite')
+    with store.transaction() as conn:
+        conn.execute('CREATE TABLE orion_operations(data TEXT)')
+        conn.execute('CREATE TABLE orion_batches(state TEXT,plan_id TEXT)')
+        conn.execute('CREATE TABLE orion_jobs(kind TEXT,state TEXT,payload TEXT)')
+        for state in ('error','cancelled','intent'):
+            conn.execute('INSERT INTO orion_operations VALUES(?)',(json.dumps({
+                'id':state,'state':state,'source':str(tmp_path/'source.mkv'),
+                'destination':str(tmp_path/'target.mkv'),'verification':{'sha256':'old digest'}
+            }),))
+    assert needs_startup_recovery(store) is False
+    (tmp_path/'target.mkv').write_bytes(b'completed during crash')
+    assert needs_startup_recovery(store) is True
+
+
+def test_server_retry_checks_stable_identity_before_repinning(library,tmp_path):
+    from orion.store import utcnow
+    cfg=Config(tmp_path/'identity')
+    identity=['original']
+    runtime=SimpleNamespace(config=cfg)
+    runtime.server=SimpleNamespace(revision=lambda:'new-epoch',
+                                   mapping_revision=lambda:identity[0])
+    mgr=JobManager(library.store,{'episode_gaps':lambda p,c:{'state':'completed'}},runtime=runtime)
+    try:
+        payload={'server_revision':'prior-epoch','server_identity':'original',
+                 'series_id':'series','mapping':{'provider_id':'123','confirmed':True}}
+        with library.store.transaction() as conn:
+            conn.execute('INSERT INTO orion_jobs(id,kind,state,payload,created_at,updated_at) VALUES(?,?,?,?,?,?)',
+                         ('old-gaps','episode_gaps','interrupted',json.dumps(payload),utcnow(),utcnow()))
+        identity[0]='replacement'
+        with pytest.raises(ValueError,match='Server configuration changed'):
+            mgr.retry('old-gaps')
+        with library.store.transaction() as conn:
+            row=conn.execute("SELECT state,payload FROM orion_jobs WHERE id='old-gaps'").fetchone()
+            assert row['state']=='interrupted'
+            assert json.loads(row['payload'])==payload
+        identity[0]='original'
+        mgr.retry('old-gaps')
+        with library.store.transaction() as conn:
+            saved=json.loads(conn.execute("SELECT payload FROM orion_jobs WHERE id='old-gaps'").fetchone()[0])
+        assert saved['server_revision']=='new-epoch'
+        assert saved['server_identity']=='original'
+    finally:
+        mgr.shutdown()
+
+
+def test_provider_deadline_checks_dribbled_available_bytes(monkeypatch,context):
+    import time
+    import orion.providers as providers
+    class Raw:
+        def __init__(self):self.reads=0
+        def read1(self,n,decode_content=False):
+            self.reads+=1
+            time.sleep(.012)
+            return b' '
+    class Response:
+        status_code=200
+        headers={}
+        def __init__(self):self.raw=Raw()
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def raise_for_status(self):pass
+        def iter_content(self,chunk_size):pytest.fail('Must not wait for a full iter_content chunk')
+    response=Response()
+    monkeypatch.setattr(requests,'request',lambda *a,**kw:response)
+    monkeypatch.setattr(providers,'MAX_PROVIDER_DURATION',.075)
+    started=time.monotonic()
+    with pytest.raises(ProviderError,match='provider timeout'):
+        providers.Providers._request('tmdb','GET','https://invalid.example',context)
+    assert response.raw.reads>=3
+    assert time.monotonic()-started<1.0
+
+
+def test_server_submission_saves_durable_identity(library,tmp_path):
+    cfg=Config(tmp_path/'identity-save')
+    captured={}
+    class Jobs:
+        def submit(self,kind,payload):
+            captured['kind'],captured['payload']=kind,payload
+            return SimpleNamespace(id='job-1')
+    runtime=SimpleNamespace(store=library.store,config=cfg,providers=None,
+                            library=library,jobs=Jobs())
+    server=ServerIntegration(runtime)
+    server.save(ServerSettings(enabled=True,url='http://127.0.0.1:8096'))
+    server.submit('episode_gaps',{'series_id':'show'})
+    assert captured['payload']['server_identity']==server.mapping_revision()
+    assert captured['payload']['server_revision']==server.revision()
