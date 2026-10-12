@@ -66,15 +66,19 @@ class Providers:
 
     @staticmethod
     def _request(provider, method, url, context, **kwargs):
+        # A single budget covers rate-limiting, retries, and the response.
+        deadline = time.monotonic() + MAX_PROVIDER_DURATION
         for attempt in range(3):
+            if time.monotonic() >= deadline:raise ProviderError('provider_timeout',provider)
             LIMITER.acquire(provider,context)
+            if time.monotonic() >= deadline:raise ProviderError('provider_timeout',provider)
             try:
-                started = time.monotonic()
-                with requests.request(method,url,timeout=(3,3),stream=True,headers={'User-Agent':'Orion/0.2 (https://github.com/Varun-SV/Orion)'},**kwargs) as response:
+                with requests.request(method,url,timeout=(min(3,max(.1,deadline-time.monotonic())),3),stream=True,headers={'User-Agent':'Orion/0.2 (https://github.com/Varun-SV/Orion)'},**kwargs) as response:
                     if response.status_code in (429,503) and attempt < 2:
                         delay = min(float(response.headers.get('Retry-After',1)),3)
                         end = time.monotonic() + max(delay,0)
                         while time.monotonic() < end:
+                            if time.monotonic() >= deadline:raise ProviderError('provider_timeout',provider)
                             if context.cancelled(): raise Cancelled()
                             time.sleep(min(0.05,end-time.monotonic()))
                         continue
@@ -83,13 +87,31 @@ class Providers:
                     if length is not None and int(length) > MAX_PROVIDER_RESPONSE:
                         raise ProviderError('response_too_large',provider)
                     parts, size = [], 0
-                    for chunk in response.iter_content(chunk_size=65536):
+                    raw = getattr(response,'raw',None)
+                    read_available = getattr(raw,'read1',None)
+                    # iter_content waits for its full chunk size: a server
+                    # trickling one byte per read timeout can delay deadline
+                    # checks indefinitely. read1 returns available bytes
+                    # instead of waiting for a full 64-KiB buffer.
+                    chunks = response.iter_content(chunk_size=65536) if not callable(read_available) else None
+                    while True:
                         if context.cancelled():raise Cancelled()
-                        if time.monotonic() - started > MAX_PROVIDER_DURATION:
-                            raise ProviderError('provider_timeout',provider)
-                        size += len(chunk)
-                        if size > MAX_PROVIDER_RESPONSE:
-                            raise ProviderError('response_too_large',provider)
+                        remaining=deadline-time.monotonic()
+                        if remaining<=0:raise ProviderError('provider_timeout',provider)
+                        if chunks is None:
+                            # Narrow the socket timeout near the deadline so
+                            # a blocked read cannot exceed the remaining budget.
+                            connection=getattr(raw,'connection',None)
+                            socket=getattr(connection,'sock',None)
+                            if socket is not None:
+                                socket.settimeout(min(3.0,max(.001,remaining)))
+                            chunk=read_available(65536,decode_content=True)
+                        else:
+                            chunk=next(chunks,None)
+                        if time.monotonic()>=deadline:raise ProviderError('provider_timeout',provider)
+                        if not chunk:break
+                        size+=len(chunk)
+                        if size>MAX_PROVIDER_RESPONSE:raise ProviderError('response_too_large',provider)
                         parts.append(chunk)
                     return json.loads(b''.join(parts))
             except (requests.Timeout, requests.ConnectionError):
