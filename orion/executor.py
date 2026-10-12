@@ -419,12 +419,25 @@ class Executor:
             if directory:
                 root = Path(directory)
                 if root.is_dir():
-                    for current,dirs,files in os.walk(root,topdown=False,followlinks=False):
+                    # Only prune directories implied by the journal's approved
+                    # file paths. Unknown empty directories are residual user
+                    # content and must never be silently removed.
+                    known_dirs=set()
+                    for relative in group[0].verification.get('item_signature',{}).get('children',{}):
+                        for parent in Path(relative).parents:
+                            if str(parent) != '.':
+                                known_dirs.add(parent.as_posix())
+                    walk_errors=[]
+                    for current,dirs,files in os.walk(root,topdown=False,followlinks=False,onerror=walk_errors.append):
+                        current_path=Path(current)
+                        relative=current_path.relative_to(root).as_posix()
+                        if relative!='.' and relative not in known_dirs:
+                            continue
                         try:
-                            Path(current).rmdir()
+                            current_path.rmdir()
                         except OSError:
                             pass
-                    residual_directory = root.exists()
+                    residual_directory = root.exists() or bool(walk_errors)
             if residual_directory and not undo:
                 # A late arrival after preflight remains at the source. Preserve
                 # both paths and report partial recovery, not a complete move.
@@ -517,6 +530,7 @@ class Executor:
         eligible={op.id for op in originals if op.state=='completed' and op.kind in ('move','create_nfo','create_artwork')}
         if not set(excluded).issubset(eligible):raise ValueError('Excluded operation is not a completed member of this batch')
         partial_items={op.item_id for op in originals if op.id in excluded and op.kind=='move'}
+        excluded_media=[Path(op.destination) for op in originals if op.id in excluded and op.kind=='move']
         plan = OperationPlan(id=str(uuid4()),undo_batch_id=batch_id,undo_operation_states={op.id:op.state for op in originals},excluded_operation_ids=excluded)
         for op in originals:
             if op.state != 'completed': continue
@@ -526,7 +540,13 @@ class Executor:
             source,destination = Path(op.destination),Path(op.source)
             details = op.verification
             if op.kind.startswith('create_'):
-                if op.item_id in partial_items:
+                # Sidecars such as artist.nfo and album.nfo may be owned by
+                # one item yet used by other media in the containing folder.
+                # Retain when *any* excluded move remains beneath the folder.
+                if op.item_id in partial_items or any(
+                    media==source.parent or media.is_relative_to(source.parent)
+                    for media in excluded_media
+                ):
                     plan.warnings.append(PlanIssue(code='sidecar_retained_for_excluded_media',detail='Retain generated metadata for media left organised: '+str(source),item_id=op.item_id,operation_id=op.id))
                     continue
                 if not self._destination_matches(op):
