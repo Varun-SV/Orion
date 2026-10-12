@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re
 import string
+import hashlib
 from pathlib import Path,PurePosixPath
 from typing import Literal
 from pydantic import Field
@@ -27,6 +28,19 @@ class RelativeLayout(Record):
 FIELDS = {'title','year','year_suffix','ext','quality','season','episode','episode_title','episode_title_suffix','artist','album','track_prefix','author','series','series_path'}
 
 RESERVED_NAMES = {'CON','PRN','AUX','NUL',*[f'{p}{n}' for p in ('COM','LPT') for n in range(1,10)]}
+MAX_COMPONENT_BYTES = 240
+MAX_CLEAN_BYTES = 160
+
+def shorten_component(value,limit=MAX_CLEAN_BYTES):
+    """Deterministic UTF-8-safe shortening of editable metadata fields."""
+    raw=value.encode('utf-8')
+    if len(raw)<=limit:
+        return value
+    suffix='~'+hashlib.sha256(raw).hexdigest()[:10]
+    budget=limit-len(suffix)
+    text=raw[:budget].decode('utf-8','ignore').rstrip(' .')
+    return (text or 'Untitled')+suffix
+
 
 def reserved_name(value):
     return value.upper().split('.')[0] in RESERVED_NAMES
@@ -35,7 +49,7 @@ def clean(value):
     text = re.sub(r'[<>:"/\\|?*\x00-\x1f]','-',str(value)).strip(' .')
     if reserved_name(text):
         text = '_' + text
-    return text or 'Untitled'
+    return shorten_component(text or 'Untitled')
 
 def valid_relative(path):
     if re.search(r'[<>:"\\|?*\x00-\x1f]',path):
@@ -45,6 +59,8 @@ def valid_relative(path):
         raise ValueError('Naming cannot escape its selected root')
     if any(part in ('.','') or part.endswith((' ','.')) or reserved_name(part) for part in parsed.parts):
         raise ValueError('Invalid path component')
+    if any(len(part.encode('utf-8')) > MAX_COMPONENT_BYTES for part in parsed.parts):
+        raise ValueError('Naming path component exceeds the portable 240-byte limit')
     return parsed.as_posix()
 
 class Naming:
