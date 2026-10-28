@@ -133,12 +133,14 @@ for (const width of [360, 390, 768, 1280, 1600]) {
   );
 }
 
-test('reloading the skip-link fragment retains usable page content', async ({ page }) => {
-  await page.goto('./');
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Enter');
-  await expect(page.locator('main')).toBeFocused();
+test("reloading the skip-link fragment retains usable page content", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main")).toBeFocused();
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page).toHaveTitle('Overview · Orion');
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page).toHaveTitle("Overview · Orion");
 });

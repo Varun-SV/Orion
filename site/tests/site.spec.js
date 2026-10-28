@@ -48,7 +48,7 @@ test("repository-prefix routes reload with correct titles and local documentatio
     const response = await request.get(href);
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toMatch(/text\/html/);
-    expect(await response.text()).toContain("<h1>");
+    expect(await response.text()).toMatch(/<h1(?:\s[^>]*)?>/);
   }
   const links = await page
     .locator("a[href]")
@@ -149,14 +149,21 @@ for (const width of [360, 390, 768, 1280, 1600]) {
             () => document.documentElement.scrollWidth <= window.innerWidth,
           ),
         ).toBe(true);
-        const broken = await page
-          .locator("img")
-          .evaluateAll((images) =>
-            images
-              .filter((image) => !image.complete || image.naturalWidth === 0)
-              .map((image) => image.src),
-          );
-        expect(broken).toEqual([]);
+        // A route transition can render its heading before the new image has
+        // decoded. Verify the images themselves instead of font readiness.
+        await expect
+          .poll(() =>
+            page
+              .locator("img")
+              .evaluateAll((images) =>
+                images
+                  .filter(
+                    (image) => !image.complete || image.naturalWidth === 0,
+                  )
+                  .map((image) => image.src),
+              ),
+          )
+          .toEqual([]);
       }
       expect(failures).toEqual([]);
       expect(
@@ -172,4 +179,3 @@ for (const width of [360, 390, 768, 1280, 1600]) {
     },
   );
 }
-
