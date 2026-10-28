@@ -64,7 +64,7 @@ jobs:
         env:
           ORION_PYTHON: python
           ORION_QA_OUTPUT: test-results/production-browser
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: production-browser-evidence
@@ -94,12 +94,12 @@ jobs:
       - run: python scripts/smoke_package.py --executable dist/Orion/Orion.exe --output test-results/package-smoke.json
       - run: python scripts/archive_package.py --bundle dist/Orion --output dist/release
       - run: python scripts/verify_release.py --assets dist/release
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-package
           path: dist/release
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: package-smoke-evidence
@@ -121,7 +121,7 @@ jobs:
       - run: npm --prefix site run build
       - run: npx --prefix site playwright install --with-deps chromium
       - run: npm --prefix site test
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: project-site-preview
           path: site/dist
