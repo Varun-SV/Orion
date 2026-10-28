@@ -114,7 +114,7 @@ function pageShell(entry, content, toc, manifest) {
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="${escapeHtml(entry.description)}">
   <meta name="color-scheme" content="dark light"><title>${escapeHtml(entry.title)} · Orion docs</title>
-  <link rel="icon" href="${BASE}favicon.svg"><link rel="stylesheet" href="${DOCS_URL}document.css">
+  <link rel="icon" href="${BASE}favicon.svg"><link rel="stylesheet" href="${DOCS_URL}document.css"><link rel="stylesheet" href="${DOCS_URL}search.css">
   <script>try{const t=localStorage.getItem('orion-site-theme');if(t==='ivory'||t==='clay')document.documentElement.dataset.theme=t;const m=localStorage.getItem('orion-site-motion');if(m==='paused')document.documentElement.dataset.motion='paused'}catch{}</script>
 </head>
 <body>
@@ -135,6 +135,7 @@ function pageShell(entry, content, toc, manifest) {
   </div>
   <footer class="docs-footer"><a href="${BASE}#overview">ORION</a><span>Local-first media organizing</span><a href="https://github.com/Varun-SV/Orion">Source ↗</a></footer>
   <script src="${DOCS_URL}docs.js" defer></script>
+  <script src="${DOCS_URL}search.js" defer></script>
 </body></html>`;
 }
 

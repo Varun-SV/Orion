@@ -1,7 +1,10 @@
 import "./style.css";
+import "./cinematic.css";
 import { collections } from "./collections";
 import { showcaseMarkup, mountShowcase } from "./showcase";
 import { setupMotion } from "./motion";
+import { sceneMarkup, mountScene } from "./scene";
+import { storyMarkup, mountStory } from "./story";
 
 const BASE = import.meta.env.BASE_URL;
 const repository = "https://github.com/Varun-SV/Orion";
@@ -50,7 +53,7 @@ function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   themeSelect.value = theme;
   document.querySelector('meta[name="theme-color"]').content =
-    theme === "night" ? "#080e13" : theme === "clay" ? "#f8f3ed" : "#faf9f5";
+    theme === "night" ? "#070b10" : theme === "clay" ? "#f7f0e8" : "#f6f7f0";
   try {
     localStorage.setItem("orion-site-theme", theme);
   } catch {
@@ -103,44 +106,19 @@ const screenshot = (file, alt, caption) =>
 
 function overview() {
   return `<section class="hero">
-    <div class="hero-coordinates" aria-hidden="true"><span>PERSONAL MEDIA SYSTEM</span><span>EST. FOR THE STORIES YOU KEEP</span></div>
+    ${sceneMarkup()}
+    <div class="hero-coordinates" aria-hidden="true"><span>ORION / THE PERSONAL MEDIA SYSTEM</span><span>YOUR UNIVERSE. A LITTLE MORE ORDERED.</span></div>
     <div class="hero-layout"><div class="hero-copy-block">
-      ${eyebrow("A CLEARER ORBIT FOR YOUR MEDIA")}
-      <h1>Your library.<br>In perfect<br><em>orbit.</em><span class="headline-star" aria-hidden="true">✦</span></h1>
-      <p class="hero-copy">The films. The albums. The worlds between.<br>Bring every story home, with a local workspace that puts you in control.</p>
-      <div class="actions"><a class="button primary" href="#install">Get started <span aria-hidden="true">↗</span></a><a class="button text-action" href="${BASE}docs/">Read the docs <span aria-hidden="true">→</span></a></div>
+      ${eyebrow("LOCAL-FIRST. OPEN SOURCE. ENTIRELY YOURS.")}
+      <h1>Every file.<br>In its<br><em>right orbit.</em></h1>
+      <p class="hero-copy">A folder full of filenames. A universe of stories.<br>Orion turns the first into the second — with reviewed metadata, exact previews, and a record of every move.</p>
+      <div class="actions"><a class="button primary" href="#install">Bring Orion home <span aria-hidden="true">↗</span></a><a class="button text-action" href="${BASE}docs/">Explore the docs <span aria-hidden="true">→</span></a></div>
       <p class="hero-note"><span class="small-dot"></span> YOUR FILES. YOUR COMPUTER. YOUR CALL.</p>
-    </div><div class="hero-instrument"><div class="instrument-orbit orbit-decoration" aria-hidden="true"><span></span><i></i></div>${showcaseMarkup()}<div class="instrument-caption" aria-hidden="true"><span>01 — FROM SCATTERED TO SORTED</span><span>TRY IT ABOVE ↑</span></div></div></div>
-    <div class="hero-floor"><span class="scroll-invitation"><span aria-hidden="true">↓</span> A UNIVERSE, IN ORDER</span><span>NO CLOUD REQUIRED <span aria-hidden="true">✦</span></span></div>
+    </div><div class="hero-instrument"><div class="orbital-legend" aria-hidden="true"><span><i></i> YOUR LIBRARY, IN MOTION</span><span>07 COLLECTIONS / 01 HOME</span></div>${showcaseMarkup()}<div class="instrument-caption" aria-hidden="true"><span>01 — TRY A LITTLE ORDER</span><span>INTERACTIVE SAMPLE ↑</span></div></div></div>
+    <div class="hero-floor"><span class="scroll-invitation"><span aria-hidden="true">↓</span> FOLLOW A FILE INTO ORBIT</span><span>BUILT FOR THE STORIES YOU KEEP <span aria-hidden="true">✦</span></span></div>
   </section>
   <section class="principles reveal" aria-label="Orion principles"><p><span>01</span> Local by design</p><p><span>02</span> Review before action</p><p><span>03</span> Never overwrite</p><p><span>04</span> Open source, always</p></section>
-  <section class="section workflow-section reveal"><div class="section-heading"><div>${eyebrow("A PLACE FOR EVERY STORY")}<h2>Less scattered.<br><em>More stellar.</em></h2></div><p>From a folder full of filenames<br>to a library that feels like yours.</p></div>
-    <div class="journey"><div class="journey-line" aria-hidden="true"></div>${[
-      [
-        "01",
-        "Bring it in.",
-        "Connect the folders you already own. Scan movies, music, books, and everything in between.",
-        "SCAN",
-      ],
-      [
-        "02",
-        "Make it yours.",
-        "Review the match. Refine the name. See every destination before you approve a thing.",
-        "REVIEW & PREVIEW",
-      ],
-      [
-        "03",
-        "Set it in orbit.",
-        "Organise with verified transfers, persistent jobs, and a guarded way back when you need it.",
-        "ORGANISE & RECOVER",
-      ],
-    ]
-      .map(
-        ([n, title, copy, tag]) =>
-          `<article><span class="journey-node" aria-hidden="true">${n}</span><span class="overline">${tag}</span><h3>${title}</h3><p>${copy}</p></article>`,
-      )
-      .join("")}</div>
-  </section>
+  ${storyMarkup()}
   <section class="section collection-section reveal"><div class="section-heading"><div>${eyebrow("SEVEN COLLECTIONS. ONE GRAVITY.")}<h2>There’s room for<br><em>your whole universe.</em></h2></div><a class="text-link" href="#demo">Explore every collection ↗</a></div>${collectionList()}</section>
   <section class="section product-section reveal"><div class="section-heading"><div>${eyebrow("MEET YOUR MISSION CONTROL")}<h2>Clarity at<br><em>every step.</em></h2></div><div class="product-description"><p>A real workspace, with real decisions.<br>Not another folder you’ll forget about.</p><a class="text-link" href="#features">Inside the workspace →</a></div></div>
     <div class="product-frame"><div class="product-frame-top"><span><i></i><i></i><i></i></span><span>ORION / YOUR LOCAL WORKSPACE</span><span>↗</span></div>${screenshot("production-night.png", "The real Orion application in its night theme, with seven media collections and local job status.", "ACTUAL PRODUCT · Captured with generated test media, never a personal library.")}</div>
@@ -286,10 +264,14 @@ function render(focus = false) {
   cleanupPage();
   main.innerHTML = renderers[route]();
   main.dataset.route = route;
-  cleanupPage =
-    route === "overview"
-      ? mountShowcase(main.querySelector(".showcase"))
-      : () => {};
+  if (route === "overview") {
+    const cleanups = [
+      mountShowcase(main.querySelector(".showcase")),
+      mountScene(main.querySelector(".hero")),
+      mountStory(main.querySelector(".file-story")),
+    ];
+    cleanupPage = () => cleanups.forEach((cleanup) => cleanup());
+  } else cleanupPage = () => {};
   main
     .querySelectorAll(".page-intro, .section, .wide-section, .demo-shell")
     .forEach((node) => node.classList.add("reveal"));
