@@ -15,7 +15,7 @@ Orion uses a React/TypeScript interface with a local FastAPI/Python engine and S
 - Connect Jellyfin or Emby with an explicit user, review duplicate hints, refresh after successful organisation and inspect episode gaps against a confirmed TMDb mapping. Unavailable catalogues are shown as unavailable.
 - Choose Ivory, Clay or Night, use the responsive layout and keyboard-accessible review dialogs, and keep reduced-motion preferences.
 
-The [public project site](https://varun-sv.github.io/Orion/) has a clearly labelled fixture demo and installation/recovery guidance. Its first deployment awaits this PR's user-controlled merge to main; the production app never substitutes demo jobs or counts.
+The [public project site](https://varun-sv.github.io/Orion/) includes an interactive, clearly labelled fixture showcase and complete [on-site documentation](https://varun-sv.github.io/Orion/docs/). The production app never substitutes demo jobs or counts.
 
 ## Run from source
 

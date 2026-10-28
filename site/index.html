@@ -1,71 +1,125 @@
 <!doctype html>
-<html lang="en" data-theme="ivory">
+<html lang="en" data-theme="night">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Orion is a local media workspace for reviewing metadata, previewing paths and organising seven collections with recovery records."
+      content="Give your media a clearer orbit. Orion is your local workspace to review, preview and organise seven collections with recoverable file operations."
     />
-    <meta name="theme-color" content="#faf9f5" />
-    <meta property="og:title" content="Orion — a place for every story" />
+    <meta name="theme-color" content="#080e13" />
+    <meta
+      property="og:title"
+      content="Orion — your library, in perfect orbit"
+    />
     <meta
       property="og:description"
-      content="Your movies, series, music and books. One considered local workspace."
+      content="Movies, series, anime, music and books. A considered local home for every story."
     />
     <meta property="og:type" content="website" />
     <meta
       property="og:image"
-      content="https://varun-sv.github.io/Orion/images/production-ivory.png"
+      content="https://varun-sv.github.io/Orion/images/production-night.png"
     />
     <link rel="canonical" href="https://varun-sv.github.io/Orion/" />
     <link rel="icon" type="image/svg+xml" href="/Orion/favicon.svg" />
+    <link
+      rel="preload"
+      as="font"
+      href="/Orion/fonts/newsreader.woff2"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="font"
+      href="/Orion/fonts/plex-sans.woff2"
+      type="font/woff2"
+      crossorigin
+    />
     <title>Overview · Orion</title>
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
     <a class="skip" href="#content">Skip to content</a>
+    <div class="sky" aria-hidden="true"></div>
     <header class="site-header">
       <a class="brand" href="#overview" aria-label="Orion overview"
         ><svg viewBox="0 0 36 36" aria-hidden="true">
-          <path
-            d="M8 5 13 17 27 22 29 31M13 17 5 27M13 17 24 6"
-            fill="none"
-            stroke="currentColor"
-          />
-          <circle cx="8" cy="5" r="2" />
-          <circle cx="13" cy="17" r="3" />
-          <circle cx="27" cy="22" r="2" />
-          <circle cx="29" cy="31" r="2" />
-          <circle cx="5" cy="27" r="2" />
-          <circle cx="24" cy="6" r="2" /></svg
-        >Orion<span class="brand-tag">THE MEDIA WORKSPACE</span></a
+          <path d="M8 5 13 17 27 22 29 31M13 17 5 27M13 17 24 6" />
+          <circle cx="8" cy="5" r="1.8" />
+          <circle cx="13" cy="17" r="2.7" />
+          <circle cx="27" cy="22" r="1.8" />
+          <circle cx="29" cy="31" r="1.8" />
+          <circle cx="5" cy="27" r="1.8" />
+          <circle cx="24" cy="6" r="1.8" /></svg
+        ><span>ORION</span
+        ><span class="brand-tag">A HOME FOR YOUR MEDIA</span></a
       >
       <nav aria-label="Primary">
         <a href="#overview" data-route="overview">Overview</a>
         <a href="#features" data-route="features">Features</a>
+        <a href="/Orion/docs/">Docs</a>
         <a href="#install" data-route="install">Install</a>
         <a href="#recovery" data-route="recovery">Recovery &amp; privacy</a>
-        <a href="#demo" data-route="demo">Demo</a>
+        <a href="#demo" data-route="demo"
+          >Demo <span aria-hidden="true">↗</span></a
+        >
       </nav>
-      <label class="theme-control"
-        ><span class="visually-hidden">Colour theme</span
-        ><select id="theme">
-          <option value="ivory">Ivory</option>
-          <option value="clay">Clay</option>
-          <option value="night">Night</option>
-        </select></label
-      >
+      <div class="header-controls">
+        <button
+          id="motion-toggle"
+          class="motion-button"
+          type="button"
+          aria-label="Pause animations"
+          aria-pressed="false"
+        >
+          <span data-motion-icon aria-hidden="true">Ⅱ</span>
+        </button>
+        <label class="theme-control"
+          ><span class="visually-hidden">Colour theme</span
+          ><select id="theme">
+            <option value="night">Night</option>
+            <option value="ivory">Ivory</option>
+            <option value="clay">Clay</option>
+          </select></label
+        >
+      </div>
     </header>
     <main id="content" tabindex="-1"></main>
     <footer class="site-footer">
-      <a class="footer-brand" href="#overview">Orion</a>
-      <p>Made for the collections you keep.</p>
-      <div>
-        <a href="https://github.com/Varun-SV/Orion">Source on GitHub ↗</a
-        ><a href="/Orion/docs/licenses.html">Licences</a
-        ><span>Local app · MIT licence</span>
+      <div class="footer-top">
+        <div>
+          <a class="footer-brand" href="#overview"
+            >ORION<span aria-hidden="true">✦</span></a
+          >
+          <p>A little order. A whole universe to enjoy.</p>
+        </div>
+        <div class="footer-links">
+          <a href="/Orion/docs/">Documentation</a
+          ><a href="#install">Get Orion</a
+          ><a
+            href="https://github.com/Varun-SV/Orion"
+            target="_blank"
+            rel="noreferrer"
+            >GitHub ↗</a
+          >
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span><i class="small-dot"></i> Made for the collections you keep.</span
+        ><span
+          >LOCAL BY DESIGN <span aria-hidden="true">/</span>
+          <a href="/Orion/docs/licenses.html">MIT &amp; licences</a></span
+        ><a href="#overview" class="back-top">Back to the stars ↑</a>
       </div>
     </footer>
+    <noscript
+      ><p class="noscript-message">
+        The interactive showcase needs JavaScript.
+        <a href="/Orion/docs/">Read the complete documentation</a> or
+        <a href="/Orion/docs/install.html">install Orion</a>.
+      </p></noscript
+    >
   </body>
 </html>

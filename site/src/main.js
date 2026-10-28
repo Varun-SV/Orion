@@ -1,83 +1,17 @@
 import "./style.css";
+import { collections } from "./collections";
+import { showcaseMarkup, mountShowcase } from "./showcase";
+import { setupMotion } from "./motion";
 
 const BASE = import.meta.env.BASE_URL;
 const repository = "https://github.com/Varun-SV/Orion";
-const collections = [
-  {
-    name: "Movies",
-    kind: "Feature films",
-    title: "The Lantern",
-    year: "2024",
-    detail: "A fictional feature film",
-    source: "incoming/the.lantern.2024.mkv",
-    destination: "Movies/The Lantern (2024)/The Lantern (2024).mkv",
-    glyph: "01",
-  },
-  {
-    name: "Series",
-    kind: "Every season, in order",
-    title: "Northbound",
-    year: "2023",
-    detail: "Season 01 · Episode 02",
-    source: "incoming/northbound.s01e02.mkv",
-    destination: "Series/Northbound (2023)/Season 01/Northbound - S01E02.mkv",
-    glyph: "02",
-  },
-  {
-    name: "Anime",
-    kind: "Series & specials",
-    title: "Cloud Atlas Academy",
-    year: "2022",
-    detail: "Season 01 · Episode 01",
-    source: "incoming/cloud.academy.s01e01.mkv",
-    destination:
-      "Anime/Cloud Atlas Academy (2022)/Season 01/Cloud Atlas Academy - S01E01.mkv",
-    glyph: "03",
-  },
-  {
-    name: "Anime films",
-    kind: "Animated features",
-    title: "Paper Moon Garden",
-    year: "2021",
-    detail: "A fictional animated film",
-    source: "incoming/paper.moon.garden.2021.mkv",
-    destination:
-      "Anime Films/Paper Moon Garden (2021)/Paper Moon Garden (2021).mkv",
-    glyph: "04",
-  },
-  {
-    name: "Web series",
-    kind: "Stories from the web",
-    title: "Small Hours",
-    year: "2025",
-    detail: "Season 01 · Episode 03",
-    source: "incoming/small.hours.s01e03.mp4",
-    destination:
-      "Web Series/Small Hours (2025)/Season 01/Small Hours - S01E03.mp4",
-    glyph: "05",
-  },
-  {
-    name: "Music",
-    kind: "Artists, albums & tracks",
-    title: "Quiet Lines",
-    year: "2020",
-    detail: "Sample artist · Track 01",
-    source: "incoming/01.first.light.flac",
-    destination: "Music/Sample Artist/Quiet Lines (2020)/01 - First Light.flac",
-    glyph: "06",
-  },
-  {
-    name: "Books",
-    kind: "A library of your own",
-    title: "The Field Notebook",
-    year: "2019",
-    detail: "Sample author · EPUB",
-    source: "incoming/the.field.notebook.epub",
-    destination:
-      "Books/Sample Author/The Field Notebook (2019)/The Field Notebook.epub",
-    glyph: "07",
-  },
-];
+const stars = Array.from({ length: 54 }, (_, i) => {
+  const x = (i * 173 + 97) % 1440,
+    y = (i * 241 + 137) % 1100;
+  return `<circle class="ambient-star" cx="${x}" cy="${y}" r="${i % 9 === 0 ? 1.6 : 0.7}" style="animation-delay:${-i % 7}s"/>`;
+}).join("");
+document.querySelector(".sky").innerHTML =
+  `<svg class="constellation" viewBox="0 0 1440 1100" preserveAspectRatio="xMidYMin slice"><g>${stars}</g><path class="sky-path" d="m925 110 123 83 155-62 66 132-94 113m-127-183-63 178 98 113m-98-113-100-59M93 760l95 61 127-28 65 109m-192-81-67 132"/><g class="sky-cross"><path d="M1330 590v10m-5-5h10M113 250v8m-4-4h8M730 850v10m-5-5h10"/></g></svg>`;
 const pages = {
   overview: {
     title: "Overview",
@@ -116,7 +50,7 @@ function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
   themeSelect.value = theme;
   document.querySelector('meta[name="theme-color"]').content =
-    theme === "night" ? "#212320" : theme === "clay" ? "#f8f3ed" : "#faf9f5";
+    theme === "night" ? "#080e13" : theme === "clay" ? "#f8f3ed" : "#faf9f5";
   try {
     localStorage.setItem("orion-site-theme", theme);
   } catch {
@@ -130,9 +64,11 @@ try {
   /* Storage may be disabled. */
 }
 setTheme(
-  ["ivory", "clay", "night"].includes(savedTheme) ? savedTheme : "ivory",
+  ["ivory", "clay", "night"].includes(savedTheme) ? savedTheme : "night",
 );
 themeSelect.addEventListener("change", () => setTheme(themeSelect.value));
+const motion = setupMotion();
+let cleanupPage = () => {};
 
 const eyebrow = (text) => '<p class="eyebrow"><span></span>' + text + "</p>";
 const actions = () =>
@@ -142,13 +78,15 @@ const collectionList = () =>
   collections
     .map(
       (c) =>
-        '<div><span class="collection-number">' +
+        '<a class="collection-card" href="#demo" data-demo-select="' +
+        collections.indexOf(c) +
+        '"><span class="collection-number">' +
         c.glyph +
         "</span><h3>" +
         c.name +
         "</h3><p>" +
         c.kind +
-        "</p></div>",
+        '</p><span class="collection-arrow" aria-hidden="true">↗</span></a>',
     )
     .join("") +
   "</div>";
@@ -164,33 +102,52 @@ const screenshot = (file, alt, caption) =>
   "</figcaption></figure>";
 
 function overview() {
-  return (
-    '<section class="hero">' +
-    eyebrow("YOUR LIBRARY, CONSIDERED") +
-    '<h1>A place for<br>every <em>story.</em></h1><p class="hero-copy">The films you return to. The albums you know by heart. The books still waiting.<br class="desktop-break"> Bring them together in a calm, local workspace.</p>' +
-    actions() +
-    '<div class="hero-footnote"><span class="small-dot"></span> Runs on your computer <span aria-hidden="true">/</span> Review before you organise <span aria-hidden="true">/</span> Open source</div></section>' +
-    '<section class="wide-section">' +
-    screenshot(
-      "production-ivory.png",
-      "The production Orion workspace showing its overview, seven collection navigation and local job summary.",
-      "THE REAL WORKSPACE · Production UI captured with generated test media. No personal library is pictured.",
-    ) +
-    "</section>" +
-    '<section class="section split"><div>' +
-    eyebrow("FROM INCOMING TO AT HOME") +
-    '<h2>Less housekeeping.<br>More of what you love.</h2></div><div class="prose"><p>Orion helps turn incoming files into a library you can navigate. Review a title, see the exact destination paths, then approve a batch.</p><p>The installed app keeps a durable record of the work. You can follow progress, inspect a failure and preview a guarded undo when the recorded files are unchanged.</p><a class="text-link" href="#features">Meet the workspace <span aria-hidden="true">→</span></a></div></section>' +
-    '<section class="section"><div class="section-heading"><div>' +
-    eyebrow("SEVEN COLLECTIONS. ONE WORKSPACE.") +
-    "<h2>Room for your whole library.</h2></div><p>Each kind of media gets<br>the structure it needs.</p></div>" +
-    collectionList() +
-    "</section>" +
-    '<section class="section closing">' +
-    eyebrow("KEEP YOUR COLLECTION CLOSE") +
-    "<h2>Your files. Your decisions.<br>Your computer.</h2><p>Start with the source build, or take a look around with sample data.</p>" +
-    actions() +
-    "</section>"
-  );
+  return `<section class="hero">
+    <div class="hero-coordinates" aria-hidden="true"><span>PERSONAL MEDIA SYSTEM</span><span>EST. FOR THE STORIES YOU KEEP</span></div>
+    <div class="hero-layout"><div class="hero-copy-block">
+      ${eyebrow("A CLEARER ORBIT FOR YOUR MEDIA")}
+      <h1>Your library.<br>In perfect<br><em>orbit.</em><span class="headline-star" aria-hidden="true">✦</span></h1>
+      <p class="hero-copy">The films. The albums. The worlds between.<br>Bring every story home, with a local workspace that puts you in control.</p>
+      <div class="actions"><a class="button primary" href="#install">Get started <span aria-hidden="true">↗</span></a><a class="button text-action" href="${BASE}docs/">Read the docs <span aria-hidden="true">→</span></a></div>
+      <p class="hero-note"><span class="small-dot"></span> YOUR FILES. YOUR COMPUTER. YOUR CALL.</p>
+    </div><div class="hero-instrument"><div class="instrument-orbit orbit-decoration" aria-hidden="true"><span></span><i></i></div>${showcaseMarkup()}<div class="instrument-caption" aria-hidden="true"><span>01 — FROM SCATTERED TO SORTED</span><span>TRY IT ABOVE ↑</span></div></div></div>
+    <div class="hero-floor"><span class="scroll-invitation"><span aria-hidden="true">↓</span> A UNIVERSE, IN ORDER</span><span>NO CLOUD REQUIRED <span aria-hidden="true">✦</span></span></div>
+  </section>
+  <section class="principles reveal" aria-label="Orion principles"><p><span>01</span> Local by design</p><p><span>02</span> Review before action</p><p><span>03</span> Never overwrite</p><p><span>04</span> Open source, always</p></section>
+  <section class="section workflow-section reveal"><div class="section-heading"><div>${eyebrow("A PLACE FOR EVERY STORY")}<h2>Less scattered.<br><em>More stellar.</em></h2></div><p>From a folder full of filenames<br>to a library that feels like yours.</p></div>
+    <div class="journey"><div class="journey-line" aria-hidden="true"></div>${[
+      [
+        "01",
+        "Bring it in.",
+        "Connect the folders you already own. Scan movies, music, books, and everything in between.",
+        "SCAN",
+      ],
+      [
+        "02",
+        "Make it yours.",
+        "Review the match. Refine the name. See every destination before you approve a thing.",
+        "REVIEW & PREVIEW",
+      ],
+      [
+        "03",
+        "Set it in orbit.",
+        "Organise with verified transfers, persistent jobs, and a guarded way back when you need it.",
+        "ORGANISE & RECOVER",
+      ],
+    ]
+      .map(
+        ([n, title, copy, tag]) =>
+          `<article><span class="journey-node" aria-hidden="true">${n}</span><span class="overline">${tag}</span><h3>${title}</h3><p>${copy}</p></article>`,
+      )
+      .join("")}</div>
+  </section>
+  <section class="section collection-section reveal"><div class="section-heading"><div>${eyebrow("SEVEN COLLECTIONS. ONE GRAVITY.")}<h2>There’s room for<br><em>your whole universe.</em></h2></div><a class="text-link" href="#demo">Explore every collection ↗</a></div>${collectionList()}</section>
+  <section class="section product-section reveal"><div class="section-heading"><div>${eyebrow("MEET YOUR MISSION CONTROL")}<h2>Clarity at<br><em>every step.</em></h2></div><div class="product-description"><p>A real workspace, with real decisions.<br>Not another folder you’ll forget about.</p><a class="text-link" href="#features">Inside the workspace →</a></div></div>
+    <div class="product-frame"><div class="product-frame-top"><span><i></i><i></i><i></i></span><span>ORION / YOUR LOCAL WORKSPACE</span><span>↗</span></div>${screenshot("production-night.png", "The real Orion application in its night theme, with seven media collections and local job status.", "ACTUAL PRODUCT · Captured with generated test media, never a personal library.")}</div>
+    <div class="product-details"><article><span aria-hidden="true">⌘</span><h3>All the detail.<br>None of the guesswork.</h3><p>Exact paths, metadata evidence, saved naming presets and a preview you can actually approve.</p></article><article><span aria-hidden="true">↶</span><h3>A record.<br>And a way back.</h3><p>Follow a durable job. Retry an interruption. Preview guarded undo for unchanged recorded files.</p></article><article><span aria-hidden="true">◇</span><h3>Your media.<br>On your terms.</h3><p>Keep files on your computer or NAS. Connect metadata providers or Jellyfin and Emby when you choose.</p></article></div>
+  </section>
+  <section class="section docs-section reveal"><div>${eyebrow("YOUR FIELD GUIDE")}<h2>Find your<br><em>bearings.</em></h2><p>First launch or finer details.<br>Everything you need, right here.</p><a class="text-link" href="${BASE}docs/">Open the documentation ↗</a></div><div class="docs-preview"><span class="overline">THE ORION HANDBOOK</span><form class="docs-search-preview" action="${BASE}docs/" method="get"><span aria-hidden="true">⌕</span><label class="visually-hidden" for="home-docs-search">Search documentation</label><input id="home-docs-search" type="search" name="q" placeholder="What would you like to know?" required><button type="submit" aria-label="Search guides">↵</button></form><div class="guide-links"><a href="${BASE}docs/install.html"><span>01</span><div><strong>Your first launch</strong><small>Install, connect, and find your feet.</small></div><span>↗</span></a><a href="${BASE}docs/workflow.html"><span>02</span><div><strong>From scan to sorted</strong><small>A guided journey through your first library.</small></div><span>↗</span></a><a href="${BASE}docs/recovery.html"><span>03</span><div><strong>A safe way back</strong><small>Understand jobs, backups, recovery and undo.</small></div><span>↗</span></a></div></div></section>
+  <section class="section closing reveal"><div class="closing-constellation constellation" aria-hidden="true">✦<span>✧</span><i></i></div>${eyebrow("KEEP YOUR COLLECTION CLOSE")}<h2>Every story<br>deserves <em>a home.</em></h2><p>Give yours a little order.<br>Keep a whole universe within reach.</p>${actions()}<span class="closing-note">LOCAL APP <span>·</span> SEVEN COLLECTIONS <span>·</span> OPEN SOURCE</span></section>`;
 }
 function features() {
   return (
@@ -220,7 +177,7 @@ function install() {
     "<h1>Start on your<br>own computer.</h1><p>Build the local workspace from source. The public site is a guide and a sample demo; your installed app handles your library.</p></section>" +
     '<section class="section install-grid"><div><div class="notice"><span class="step">RELEASE STATUS</span><h2>Source available.</h2><p>No published installer is linked here.</p><p>Windows bundles are prepared by the release pipeline for maintainer review. Check the repository for published release availability and verification notes. Native macOS and Linux packages are not promised.</p><a class="text-link" href="' +
     repository +
-    '">View the source on GitHub ↗</a></div></div><div class="prose"><h2>Build from source</h2><p>Use Python 3.11 or 3.12, Node.js 24 and Git. From the repository root, create a virtual environment and install the web runtime dependencies. Node is needed for the build, not for running the compiled workspace.</p><pre><code>git clone https://github.com/Varun-SV/Orion.git\ncd Orion\npython -m venv .venv\n# Windows PowerShell\n.\\.venv\\Scripts\\Activate.ps1\n# macOS / Linux instead: source .venv/bin/activate\npython -m pip install -r requirements-web.txt\nnpm --prefix frontend ci\nnpm --prefix frontend run build\npython -m orion run --frontend-dir frontend/dist</code></pre><p>The launcher opens the loopback URL in your browser. Complete setup with a source folder and destination, review matches, then preview a plan before approving it.</p><p>Stop the backend with <code>python -m orion stop</code>. Keep the same <code>--data-dir</code> for run and stop when using an alternative data directory.</p><div class="document-links"><a data-document href="' +
+    '" target="_blank" rel="noreferrer">View the source on GitHub ↗</a></div></div><div class="prose"><h2>Build from source</h2><p>Use Python 3.11 or 3.12, Node.js 24 and Git. From the repository root, create a virtual environment and install the web runtime dependencies. Node is needed for the build, not for running the compiled workspace.</p><pre><code>git clone https://github.com/Varun-SV/Orion.git\ncd Orion\npython -m venv .venv\n# Windows PowerShell\n.\\.venv\\Scripts\\Activate.ps1\n# macOS / Linux instead: source .venv/bin/activate\npython -m pip install --require-hashes -r requirements-web.lock\nnpm --prefix frontend ci\nnpm --prefix frontend run build\npython -m orion run --frontend-dir frontend/dist</code></pre><p>The launcher opens the loopback URL in your browser. Complete setup with a source folder and destination, review matches, then preview a plan before approving it.</p><p>Stop the backend with <code>python -m orion stop</code>. Keep the same <code>--data-dir</code> for run and stop when using an alternative data directory.</p><div class="document-links"><a data-document href="' +
     BASE +
     'docs/install.html">Full installation guide →</a><a data-document href="' +
     BASE +
@@ -233,7 +190,7 @@ function recovery() {
     '<section class="page-intro">' +
     eyebrow("LOCAL BY DESIGN") +
     "<h1>Keep the decisions.<br>Keep the record.</h1><p>Good organisation includes knowing what changed, what did not, and what you can recover.</p></section>" +
-    '<section class="section reading"><article><span class="step">01 / YOUR DATA</span><h2>The workspace lives with you.</h2><p>The installed UI and API share a loopback origin. Your sources, match decisions, plans and jobs live in a local SQLite database. Provider and media server credentials use the operating system keychain, or an explicitly selected session-only mode.</p><p>Optional metadata and server connections send the information needed for their requests. Configure them only if you want to use them. This static site uses local assets and saves only its colour theme in your browser.</p></article><article><span class="step">02 / FILE OPERATIONS</span><h2>Approve an exact plan.</h2><p>Plans record the proposed paths and identify collisions. Orion does not overwrite an existing destination. Cross-volume transfers use copy, verification and checkpoints before deleting the original. A durable journal records completed work and interruptions.</p><p>Recovery is a guided process. Source disappearance, interrupted copies or externally changed files may require review. A failed optional server refresh does not undo successful local organisation.</p></article><article><span class="step">03 / BACKUP & UNDO</span><h2>Recovery has boundaries.</h2><p>Database upgrades create a backup before migration. Keep an independent backup of your media and the app data directory. A plan record is not a media backup.</p><p>Undo previews a new job and checks the recorded file state. It refuses unsafe reversals when another application changed a file or a destination is occupied. It cannot promise to reverse arbitrary later edits.</p><a class="text-link" data-document href="' +
+    '<section class="section reading"><article><span class="step">01 / YOUR DATA</span><h2>The workspace lives with you.</h2><p>The installed UI and API share a loopback origin. Your sources, match decisions, plans and jobs live in a local SQLite database. Provider and media server credentials use the operating system keychain, or an explicitly selected session-only mode.</p><p>Optional metadata and server connections send the information needed for their requests. Configure them only if you want to use them. This static site uses local assets and saves your colour theme and motion preference in your browser.</p></article><article><span class="step">02 / FILE OPERATIONS</span><h2>Approve an exact plan.</h2><p>Plans record the proposed paths and identify collisions. Orion does not overwrite an existing destination. Cross-volume transfers use copy, verification and checkpoints before deleting the original. A durable journal records completed work and interruptions.</p><p>Recovery is a guided process. Source disappearance, interrupted copies or externally changed files may require review. A failed optional server refresh does not undo successful local organisation.</p></article><article><span class="step">03 / BACKUP & UNDO</span><h2>Recovery has boundaries.</h2><p>Database upgrades create a backup before migration. Keep an independent backup of your media and the app data directory. A plan record is not a media backup.</p><p>Undo previews a new job and checks the recorded file state. It refuses unsafe reversals when another application changed a file or a destination is occupied. It cannot promise to reverse arbitrary later edits.</p><a class="text-link" data-document href="' +
     BASE +
     'docs/recovery.html">Read the recovery guide →</a></article></section>' +
     '<section class="wide-section">' +
@@ -326,7 +283,16 @@ function render(focus = false) {
     return;
   }
   const route = Object.hasOwn(pages, hash) ? hash : "overview";
+  cleanupPage();
   main.innerHTML = renderers[route]();
+  main.dataset.route = route;
+  cleanupPage =
+    route === "overview"
+      ? mountShowcase(main.querySelector(".showcase"))
+      : () => {};
+  main
+    .querySelectorAll(".page-intro, .section, .wide-section, .demo-shell")
+    .forEach((node) => node.classList.add("reveal"));
   document.title = pages[route].title + " · Orion";
   document.querySelector('meta[name="description"]').content =
     pages[route].description;
@@ -372,10 +338,17 @@ function render(focus = false) {
       document.querySelector("#reset").focus();
     });
   }
+  motion.refresh();
   if (focus) {
     main.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
 }
-window.addEventListener("hashchange", () => render(true));
+main.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-demo-select]");
+  if (card) selected = Number(card.dataset.demoSelect);
+});
+window.addEventListener("hashchange", () =>
+  motion.transition(() => render(true)),
+);
 render();

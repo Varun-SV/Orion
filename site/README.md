@@ -1,19 +1,30 @@
 # Orion public project site
 
-Standalone Vite site, served at the GitHub Pages repository prefix `/Orion/`.
-Hash routes: Overview, Features, Install, Recovery & privacy and Demo.
-The demo is fictional fixture data and makes no API requests or filesystem changes.
+The observatory website is a self-contained Vite build at the GitHub Pages repository prefix `/Orion/`. Its midnight/teal visual system includes an interactive sample organiser, native page transitions, bounded scroll parallax and reveal effects. The static site never accesses the installed app API or a visitor's files. Every simulated action remains labelled.
+
+## Develop and verify
+
+Use Node 24:
 
 ```sh
 npm --prefix site ci
+npm --prefix site run test:unit
 npm --prefix site run build
 npm --prefix site exec -- playwright install --with-deps chromium
 npm --prefix site test
+npm --prefix site run dev
 ```
 
-CI uses Node 24 and Playwright Chromium. For local Windows verification with an installed Edge, set `PLAYWRIGHT_EXECUTABLE_PATH` to its absolute executable path before testing. Tests build the production artifact and serve it at `http://127.0.0.1:4174/Orion/`.
+Tests serve the production build at `http://127.0.0.1:4174/Orion/`. For local use with an installed compatible browser, set `PLAYWRIGHT_EXECUTABLE_PATH` to its absolute path. CI installs Playwright Chromium. Responsive checks cover 360, 390, 768, 1280 and 1600px, every public route, theme persistence, reduced motion, sample actions, static docs, local search and code copying.
 
-Only `site/dist` is published. Local fonts and production screenshots are copied intentionally into `public/`; no runtime import depends on the app or its private API. Font licences are included in `public/fonts/`. Generated test results, dependencies and the distribution are ignored.
+## Documentation
 
-Screenshots show the production app using generated media fixtures, with no personal media. The interactive demo uses its own explicitly labelled fictional fixtures. The approved prototype in `design-preview/` is not part of this site.
+`docs/manifest.mjs` defines the public guide set and first-party evidence assets. The Vite plugin in `vite.config.js` calls `scripts/generate-docs.js` to render Markdown from `site/docs/` and authoritative repository guides. It emits all guide text as static HTML under `dist/docs/`, so direct reloads and reading without JavaScript work on GitHub Pages. Existing install, recovery and licence URLs remain available. Headings have unique anchor IDs, internal guide links stay local, and the browser search index is generated from the same content. First-party JSON evidence is copied at build time rather than linked to GitHub.
 
+`public/docs/docs.js` enhances the guides with local search and copy-code controls, with visible failure feedback. `public/docs/document.css` provides the responsive reading layout. No network Markdown renderer or runtime CDN is required. Generated `.generated/`, dependencies, browser reports and `dist/` remain ignored.
+
+## Motion and assets
+
+`src/motion.js` owns the single scroll listener, reveal/visibility observers and page transitions. Device reduced motion and the persistent Pause animations control disable decorative activity. Night is the default; existing Ivory and Clay choices remain available. Local fonts and their full licence texts are included. Product screenshots show the real app with generated test media; the fixture showcase uses fictional media.
+
+Only `site/dist` is uploaded/deployed. The existing Pages workflow waits for the strict CI gate on main; no application backend, personal media or development files are included in the published artifact.
