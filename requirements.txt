@@ -3,7 +3,7 @@ requests>=2.32.0
 guessit>=3.8.0
 Pillow>=10.3.0
 keyring>=25.0.0
-pyinstaller>=6.8.0
+pyinstaller>=6.22.3
 
 # Music identification
 mutagen>=1.47.0          # read/write audio tags (ID3, Vorbis, MP4…)
