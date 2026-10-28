@@ -1,0 +1,183 @@
+import { useEffect, useState } from 'react';
+import { Grid, List } from 'react-feather';
+import { useResource } from '../api/useResource';
+import { useWorkspace } from '../state/WorkspaceProvider';
+import { type Kind, type Page, type MediaItem, collections } from '../types';
+import { MediaCard } from '../components/MediaCard';
+import { MatchDialog } from '../components/MatchDialog';
+import { navigate } from '../state/navigation';
+export function Library({
+  kind,
+  query = '',
+  review = false,
+}: {
+  kind?: Kind;
+  query?: string;
+  review?: boolean;
+}) {
+  const { settings, saveSettings, selected, setSelected } = useWorkspace();
+  const [settingsError, setSettingsError] = useState(''),
+    [status, setStatus] = useState(''),
+    [collection, setCollection] = useState(''),
+    [offset, setOffset] = useState(0),
+    [opened, setOpened] = useState<MediaItem | null>(null);
+  useEffect(() => {
+    setStatus('');
+    setCollection('');
+    setOffset(0);
+  }, [kind, query, review]);
+  const params = new URLSearchParams({
+    query,
+    offset: String(offset),
+    limit: '48',
+    ...(kind || collection ? { kind: kind || collection } : {}),
+    ...(status ? { status } : review ? { status: 'review' } : {}),
+  });
+  const { data, error, loading } = useResource<Page<MediaItem>>('/items?' + params);
+  const toggle = (id: string) =>
+    setSelected((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
+  return (
+    <>
+      {settingsError && <p role="alert">{settingsError}</p>}
+      <div className="section-head">
+        <p className="subtitle">
+          {data?.total ?? 0} {review ? 'items to review' : 'items'}
+          {query ? ' matching “' + query + '”' : ''}
+        </p>
+        <div className="actions">
+          {!kind && (
+            <label className="compact-field">
+              Collection
+              <select
+                aria-label="Filter collection"
+                value={collection}
+                onChange={(e) => {
+                  setCollection(e.target.value);
+                  setOffset(0);
+                }}
+              >
+                <option value="">All collections</option>
+                {Object.entries(collections).map(([id, name]) => (
+                  <option value={id} key={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="compact-field">
+            Status
+            <select
+              aria-label="Filter status"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setOffset(0);
+              }}
+            >
+              <option value="">All items</option>
+              <option value="pending">Needs review</option>
+              <option value="approved">Confirmed</option>
+              <option value="organised">Organised</option>
+              <option value="error">Failed</option>
+              <option value="no_match">No match</option>
+              <option value="unavailable">Unavailable</option>
+            </select>
+          </label>
+          <div className="segmented">
+            <button
+              aria-label="Grid view"
+              aria-pressed={settings?.view !== 'list'}
+              onClick={() =>
+                void saveSettings({ view: 'grid' })
+                  .then(() => setSettingsError(''))
+                  .catch((e) => setSettingsError(e.message))
+              }
+            >
+              <Grid />
+            </button>
+            <button
+              aria-label="List view"
+              aria-pressed={settings?.view === 'list'}
+              onClick={() =>
+                void saveSettings({ view: 'list' })
+                  .then(() => setSettingsError(''))
+                  .catch((e) => setSettingsError(e.message))
+              }
+            >
+              <List />
+            </button>
+          </div>
+        </div>
+      </div>
+      {selected.length > 0 && (
+        <div className="banner">
+          <p>{selected.length} selected · confirmed matches only</p>
+          <button className="secondary" onClick={() => navigate('plans')}>
+            Preview changes
+          </button>
+          <button className="text-button" onClick={() => setSelected([])}>
+            Clear selection
+          </button>
+        </div>
+      )}
+      {error ? (
+        <p role="alert">{error}</p>
+      ) : loading ? (
+        <p role="status">Loading collection…</p>
+      ) : data && !data.items.length ? (
+        <div className="empty">
+          <h2>
+            {query || status
+              ? 'No results found'
+              : review
+                ? 'All caught up'
+                : `No ${kind ? collections[kind].toLowerCase() : 'items'} yet`}
+          </h2>
+          <p>
+            {query || status
+              ? 'Try a different search or status.'
+              : 'Scan a configured source to discover your collection.'}
+          </p>
+          <button className="secondary" onClick={() => navigate('sources')}>
+            Manage sources
+          </button>
+        </div>
+      ) : (
+        <div className={'collection full ' + (settings?.view === 'list' ? 'list-view' : '')}>
+          {data?.items.map((item) => (
+            <MediaCard
+              key={item.id}
+              item={item}
+              selected={selected.includes(item.id)}
+              toggle={() => toggle(item.id)}
+              review={() => setOpened(item)}
+            />
+          ))}
+        </div>
+      )}
+      {!!data?.total && data.total > 48 && (
+        <div className="pagination">
+          <button
+            className="secondary"
+            disabled={!offset}
+            onClick={() => setOffset((n) => Math.max(0, n - 48))}
+          >
+            Previous
+          </button>
+          <span>
+            {offset + 1}–{Math.min(offset + 48, data.total)} of {data.total}
+          </span>
+          <button
+            className="secondary"
+            disabled={offset + 48 >= data.total}
+            onClick={() => setOffset((n) => n + 48)}
+          >
+            Next
+          </button>
+        </div>
+      )}
+      {opened && <MatchDialog item={opened} close={() => setOpened(null)} />}
+    </>
+  );
+}

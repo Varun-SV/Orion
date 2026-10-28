@@ -35,18 +35,20 @@ def fpcalc_available() -> bool:
     return shutil.which("fpcalc") is not None
 
 
-def fingerprint_file(path: str, max_seconds: int = 120) -> tuple[str, int] | None:
-    """
-    Run fpcalc on *path* and return (fingerprint_string, duration_in_seconds).
-    Returns None if fpcalc is not installed or the file cannot be processed.
+def fingerprint_file(path, max_seconds: int = 120) -> tuple[str, int] | None:
+    """Fingerprint a path or verified file handle, using stdin for the latter.
+
+    An open input handle remains bound to the verified file if its original
+    pathname is replaced while fpcalc runs.
     """
     fpcalc = shutil.which("fpcalc")
     if not fpcalc:
         return None
     try:
+        source = path if hasattr(path, 'fileno') else None
         result = subprocess.run(
-            [fpcalc, "-json", "-length", str(max_seconds), path],
-            capture_output=True, text=True, timeout=60,
+            [fpcalc, "-json", "-length", str(max_seconds), "-" if source is not None else str(path)],
+            stdin=source, capture_output=True, text=True, timeout=60,
         )
         if result.returncode != 0:
             log.warning("fpcalc error for %s: %s", path, result.stderr[:200])

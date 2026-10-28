@@ -1,0 +1,16 @@
+{
+  "platform": "Windows",
+  "startup_seconds": 2.773,
+  "bundle_bytes": 57073114,
+  "health": {
+    "status": "ok",
+    "version": "0.2.0"
+  },
+  "static_assets_checked": 52,
+  "isolated_database": true,
+  "occupied_port_rejected": true,
+  "repeat_launch_reuses_instance": true,
+  "graceful_stop": true,
+  "system_path_empty": true,
+  "qt_resources": []
+}
