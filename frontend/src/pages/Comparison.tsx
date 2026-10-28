@@ -1,33 +1,21 @@
 import { useState } from 'react';
-import { api, json } from '../api/client';
+import { json } from '../api/client';
 import { useResource } from '../api/useResource';
-import { useWorkspace } from '../state/WorkspaceProvider';
-import { type Page, type MediaItem, type Job, type Comparison, title, bytes, text } from '../types';
+import { useTask } from '../api/useTask';
+import { type Page, type MediaItem, type Comparison, title, bytes, text } from '../types';
 export function ComparisonPage() {
   const [query, setQuery] = useState(''),
     [offset, setOffset] = useState(0),
     [chosen, setChosen] = useState<string[]>([]),
-    [exact, setExact] = useState(false),
-    [job, setJob] = useState<Job | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
+    [exact, setExact] = useState(false);
   const { data, error: listError } = useResource<Page<MediaItem>>(
     '/items?' + new URLSearchParams({ query, offset: String(offset), limit: '48' }),
   );
-  const { jobs, refresh } = useWorkspace();
-  const latest = jobs.find((j) => j.id === job?.id) ?? job;
+  const task = useTask();
+  const latest = task.job;
   const result = latest?.result as unknown as Comparison | null;
   async function compare() {
-    setBusy(true);
-    setError('');
-    try {
-      setJob(await api<Job>('/comparisons', json('POST', { item_ids: chosen, exact })));
-      refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    await task.submit('/comparisons', json('POST', { item_ids: chosen, exact }));
   }
   return (
     <>
@@ -36,7 +24,7 @@ export function ComparisonPage() {
         exact content requires a fresh SHA-256 check of every selected file, including folder
         companions.
       </p>
-      {(error || listError) && <p role="alert">{error || listError}</p>}
+      {(task.error || listError) && <p role="alert">{task.error || listError}</p>}
       <section className="panel">
         <label className="field">
           Find copies
@@ -98,7 +86,7 @@ export function ComparisonPage() {
         <button
           className="primary"
           disabled={
-            busy ||
+            task.busy ||
             chosen.length < 2 ||
             chosen.length > 500 ||
             ['queued', 'running', 'cancelling'].includes(latest?.state ?? '')

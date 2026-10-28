@@ -161,8 +161,11 @@ class ServerIntegration:
                 return report
             raise ValueError('Unknown server job')
         except ProviderError as exc:
-            with self.runtime.config._lock:
-                if payload['server_revision']==self.revision() and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled','server_hints_cancelled','server_gaps_cancelled'):
+            with self.runtime.config._lock,self._publication_guard(context):
+                if context.cancelled():
+                    code={'server_hints':'server_hints_cancelled','episode_gaps':'server_gaps_cancelled'}.get(kind,'server_test_cancelled')
+                    raise ServerError(code) from exc
+                if payload['server_revision']==self.revision() and exc.code not in ('item_changed','server_configuration_changed','server_test_cancelled','server_hints_cancelled','server_gaps_cancelled'):
                     self.runtime.config.set_pref('server_health',{'health':'unavailable','detail':exc.code})
             if kind=='server_hints' and not context.cancelled() and exc.code not in ('item_changed','server_configuration_changed','server_hints_cancelled'):
                 if context.cancelled():raise ServerError('server_hints_cancelled') from exc

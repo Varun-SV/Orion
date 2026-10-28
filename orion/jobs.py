@@ -130,7 +130,11 @@ class JobManager:
         except Cancelled:
             state = 'cancelled'
         except ProviderError as exc:
-            state,error = 'failed',exc.code
+            if (context.cancelled() and exc.code in
+                    ('server_test_cancelled','server_hints_cancelled','server_gaps_cancelled')):
+                state = 'cancelled'
+            else:
+                state,error = 'failed',exc.code
         except Exception:
             # Raw request exceptions may contain credential-bearing URLs.
             state,error = 'failed','job_failed'

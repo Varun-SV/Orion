@@ -98,6 +98,19 @@ class Executor:
                     raise ValueError('Undo preview is stale; create a new preview for this batch')
             self.reconcile(plan_id,context)
             operations = self.operations(plan_id)
+            # Completed journal entries are intentionally skipped below for
+            # idempotent retries. A completed inverse means the forward plan
+            # has been consumed, even if its old destination is recreated.
+            if self._plan_has_completed_undo(plan_id):
+                raise ValueError('Plan has already been undone; create a new plan')
+            for op in operations:
+                if op.state != 'completed':
+                    continue
+                valid = (not Path(op.source).exists() if op.kind == 'remove_created'
+                         else self._destination_matches(op,context))
+                if not valid:
+                    code = 'target_changed' if op.kind == 'move' else 'operation_changed'
+                    raise ValueError(code + ': completed operation destination changed; create a new plan')
             if plan.undo_batch_id and self._restore_conflicts(plan,operations):
                 raise ValueError('Undo restore conflict: the original location contains unexpected files or another indexed item')
             # A known finalised destination is handled below, not by a fresh
@@ -148,6 +161,15 @@ class Executor:
             if previous['state']!=state or previous['data']!=result.model_dump_json():
                 conn.execute('INSERT INTO orion_activity(action,detail,status,created_at) VALUES(?,?,?,?)',('undo' if plan.undo_batch_id else 'organisation',json.dumps({'batch_id':batch_id,'undo_batch_id':plan.undo_batch_id,'completed':len(completed),'failed':len(failed),'recovery_item_ids':recovery_items}),state,utcnow()))
         return result
+
+    def _plan_has_completed_undo(self,plan_id):
+        with self.store.transaction() as conn:
+            row=conn.execute("""SELECT 1 FROM orion_batches original_batch
+                JOIN orion_operations inverse
+                  ON json_extract(inverse.data,'$.verification.undo_of')=original_batch.id
+                WHERE original_batch.plan_id=? AND json_extract(inverse.data,'$.state')='completed'
+                LIMIT 1""",(plan_id,)).fetchone()
+        return row is not None
 
     def _safe_roots(self,op):
         details = op.verification
