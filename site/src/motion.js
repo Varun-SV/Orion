@@ -73,7 +73,7 @@ export function setupMotion() {
       );
       document
         .querySelectorAll(
-          ".orbit-decoration, .headline-star, .transfer-visual, .scroll-invitation",
+          ".orbit-decoration, .headline-star, .transfer-visual, .scroll-invitation, .universe-hero",
         )
         .forEach((node) => ambientObserver.observe(node));
     } else nodes.forEach((node) => node.classList.add("is-visible"));
