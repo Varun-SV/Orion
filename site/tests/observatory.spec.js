@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { docsManifest } from "../docs/manifest.mjs";
 
-test("the observatory starts with a working organising sample in the first viewport", async ({
+test("the visual opening leads directly to a working organising sample", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -12,7 +12,12 @@ test("the observatory starts with a working organising sample in the first viewp
   });
   await expect(sample).toBeVisible();
   const box = await sample.boundingBox();
-  expect(box.y).toBeLessThan(500);
+  const hero = await page.locator(".hero").boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(hero.y + hero.height);
+  await page
+    .getByRole("button", { name: "Explore Orion", exact: true })
+    .click();
+  await expect(sample).toBeInViewport({ ratio: 0.6 });
   await expect(sample.getByText(/fictional sample/i)).toBeVisible();
   await sample.getByRole("button", { name: "Preview sample plan" }).click();
   await expect(sample.getByTestId("hero-plan")).toContainText(

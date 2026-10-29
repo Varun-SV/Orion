@@ -56,10 +56,12 @@ export function mountScene(hero) {
   function paint() {
     if (!width || !height) return;
     ctx.clearRect(0, 0, width, height);
-    const mobile = width < 701;
-    const cx = width * (mobile ? 0.66 : 0.72) + pointerX * 12;
-    const cy = height * (mobile ? 0.24 : 0.32) + pointerY * 9;
-    const radius = Math.min(width * (mobile ? 0.85 : 0.36), 510);
+    const mobile = width <= 930;
+    const cx = width * (mobile ? 0.52 : 0.755) + pointerX * 15;
+    const cy =
+      (mobile ? height - (width <= 600 ? 315 : 360) : height * 0.44) +
+      pointerY * 12;
+    const radius = Math.min(width * (mobile ? 0.6 : 0.3), 490);
     const angle = -0.4,
       cosine = Math.cos(angle),
       sine = Math.sin(angle);
@@ -69,8 +71,9 @@ export function mountScene(hero) {
       return [cx + x * cosine - y * sine, cy + x * sine + y * cosine];
     };
     const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.3);
-    glow.addColorStop(0, rgb(accent, dark ? 0.085 : 0.045));
-    glow.addColorStop(0.6, rgb(accent, 0.025));
+    glow.addColorStop(0, rgb(accent, dark ? 0.23 : 0.12));
+    glow.addColorStop(0.35, rgb(accent, dark ? 0.08 : 0.055));
+    glow.addColorStop(0.7, rgb(accent, 0.015));
     glow.addColorStop(1, rgb(accent, 0));
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
@@ -83,15 +86,15 @@ export function mountScene(hero) {
       ctx.arc(x, y, i % 9 === 0 ? 1.2 : 0.6, 0, Math.PI * 2);
       ctx.fill();
     }
-    for (const scale of [0.48, 0.69, 0.9, 1.08]) {
+    for (const scale of [0.42, 0.69, 0.94, 1.17]) {
       ctx.beginPath();
       for (let j = 0; j <= 180; j++) {
         const [x, y] = project((j / 180) * Math.PI * 2, radius * scale);
         if (j === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = rgb(accent, scale === 0.69 ? 0.25 : 0.12);
-      ctx.lineWidth = 0.65;
+      ctx.strokeStyle = rgb(accent, scale === 0.69 ? 0.38 : 0.16);
+      ctx.lineWidth = 0.8;
       ctx.stroke();
     }
     for (const p of particles) {
@@ -106,6 +109,41 @@ export function mountScene(hero) {
       ctx.arc(x, y, p.size, 0, Math.PI * 2);
       ctx.fill();
     }
+    // An eclipse anchors the media constellation; its luminous rim stays local.
+    const core = radius * 0.155;
+    const halo = ctx.createRadialGradient(
+      cx,
+      cy,
+      core * 0.8,
+      cx,
+      cy,
+      core * 2.5,
+    );
+    halo.addColorStop(0, rgb(accent, dark ? 0.55 : 0.25));
+    halo.addColorStop(0.2, rgb(accent, 0.2));
+    halo.addColorStop(1, rgb(accent, 0));
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - core * 2.5, cy - core * 2.5, core * 5, core * 5);
+    const sphere = ctx.createRadialGradient(
+      cx + core * 0.48,
+      cy - core * 0.48,
+      0,
+      cx,
+      cy,
+      core,
+    );
+    sphere.addColorStop(0, dark ? "#193f40" : "#c9e6dc");
+    sphere.addColorStop(0.7, dark ? "#08171d" : "#e9f4ed");
+    sphere.addColorStop(1, dark ? "#030a0e" : "#f6faf7");
+    ctx.fillStyle = sphere;
+    ctx.beginPath();
+    ctx.arc(cx, cy, core, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, core, -2.5, 0.75);
+    ctx.strokeStyle = rgb(accent, 0.8);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     // Bright satellite packets and their orbital trails.
     for (let i = 0; i < 4; i++) {
       const theta = i * 1.65 + time * (0.11 + i * 0.013);
@@ -130,18 +168,6 @@ export function mountScene(hero) {
       ctx.arc(x, y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.strokeStyle = rgb(accent, 0.6);
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(cx - 8, cy);
-    ctx.lineTo(cx + 8, cy);
-    ctx.moveTo(cx, cy - 8);
-    ctx.lineTo(cx, cy + 8);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 19, 0, Math.PI * 2);
-    ctx.strokeStyle = rgb(accent, 0.22);
-    ctx.stroke();
   }
   function tick(timestamp) {
     frame = 0;
@@ -156,6 +182,7 @@ export function mountScene(hero) {
   function sync() {
     cancelAnimationFrame(frame);
     frame = 0;
+    if (!allowed()) leave();
     colors();
     paint();
     last = performance.now();
@@ -176,10 +203,14 @@ export function mountScene(hero) {
     const box = hero.getBoundingClientRect();
     pointerX = (event.clientX - box.left) / width - 0.5;
     pointerY = (event.clientY - box.top) / height - 0.5;
+    hero.style.setProperty("--pointer-x", `${pointerX * -15}px`);
+    hero.style.setProperty("--pointer-y", `${pointerY * -12}px`);
   }
   function leave() {
     pointerX = 0;
     pointerY = 0;
+    hero.style.removeProperty("--pointer-x");
+    hero.style.removeProperty("--pointer-y");
   }
   const observer = new MutationObserver(sync);
   observer.observe(html, {
@@ -188,6 +219,7 @@ export function mountScene(hero) {
   });
   const visibility = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
+    hero.classList.toggle("is-offscreen", !visible);
     sync();
   });
   visibility.observe(hero);
