@@ -55,7 +55,7 @@
         ><span>ORION</span
         ><span class="brand-tag">A HOME FOR YOUR MEDIA</span></a
       >
-      <nav aria-label="Primary">
+      <nav id="primary-navigation" aria-label="Primary">
         <a href="#overview" data-route="overview">Overview</a>
         <a href="#features" data-route="features">Features</a>
         <a href="/Orion/docs/">Docs</a>
@@ -83,6 +83,15 @@
             <option value="clay">Clay</option>
           </select></label
         >
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-controls="primary-navigation"
+          aria-expanded="false"
+          aria-label="Open navigation"
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
       </div>
     </header>
     <main id="content" tabindex="-1"></main>

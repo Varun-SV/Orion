@@ -5,6 +5,8 @@ import { showcaseMarkup, mountShowcase } from "./showcase";
 import { setupMotion } from "./motion";
 import { sceneMarkup, mountScene } from "./scene";
 import { storyMarkup, mountStory } from "./story";
+import { universeMarkup, mediaArtwork } from "./media-art";
+import { galleryMarkup, mountGallery } from "./gallery";
 
 const BASE = import.meta.env.BASE_URL;
 const repository = "https://github.com/Varun-SV/Orion";
@@ -44,6 +46,37 @@ const pages = {
 };
 const main = document.querySelector("main");
 const themeSelect = document.querySelector("#theme");
+const siteHeader = document.querySelector(".site-header");
+const navToggle = document.querySelector(".nav-toggle");
+const primaryNav = document.querySelector("#primary-navigation");
+const narrowNav = matchMedia("(max-width: 700px)");
+function setNavigation(open) {
+  siteHeader.classList.toggle("navigation-open", open);
+  navToggle.setAttribute("aria-expanded", String(open));
+  navToggle.setAttribute(
+    "aria-label",
+    open ? "Close navigation" : "Open navigation",
+  );
+  navToggle.firstElementChild.textContent = open ? "×" : "☰";
+}
+navToggle.addEventListener("click", () => {
+  const open = navToggle.getAttribute("aria-expanded") !== "true";
+  setNavigation(open);
+  if (open) primaryNav.querySelector("a").focus();
+});
+siteHeader.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Escape" &&
+    navToggle.getAttribute("aria-expanded") === "true"
+  ) {
+    setNavigation(false);
+    navToggle.focus();
+  }
+});
+primaryNav.addEventListener("click", (event) => {
+  if (event.target.closest("a")) setNavigation(false);
+});
+narrowNav.addEventListener("change", () => setNavigation(false));
 let selected = 0;
 let search = "";
 let preview = false;
@@ -105,21 +138,25 @@ const screenshot = (file, alt, caption) =>
   "</figcaption></figure>";
 
 function overview() {
-  return `<section class="hero">
+  return `<section class="hero universe-hero">
     ${sceneMarkup()}
-    <div class="hero-coordinates" aria-hidden="true"><span>ORION / THE PERSONAL MEDIA SYSTEM</span><span>YOUR UNIVERSE. A LITTLE MORE ORDERED.</span></div>
-    <div class="hero-layout"><div class="hero-copy-block">
-      ${eyebrow("LOCAL-FIRST. OPEN SOURCE. ENTIRELY YOURS.")}
-      <h1>Every file.<br>In its<br><em>right orbit.</em></h1>
-      <p class="hero-copy">A folder full of filenames. A universe of stories.<br>Orion turns the first into the second — with reviewed metadata, exact previews, and a record of every move.</p>
-      <div class="actions"><a class="button primary" href="#install">Bring Orion home <span aria-hidden="true">↗</span></a><a class="button text-action" href="${BASE}docs/">Explore the docs <span aria-hidden="true">→</span></a></div>
-      <p class="hero-note"><span class="small-dot"></span> YOUR FILES. YOUR COMPUTER. YOUR CALL.</p>
-    </div><div class="hero-instrument"><div class="orbital-legend" aria-hidden="true"><span><i></i> YOUR LIBRARY, IN MOTION</span><span>07 COLLECTIONS / 01 HOME</span></div>${showcaseMarkup()}<div class="instrument-caption" aria-hidden="true"><span>01 — TRY A LITTLE ORDER</span><span>INTERACTIVE SAMPLE ↑</span></div></div></div>
-    <div class="hero-floor"><span class="scroll-invitation"><span aria-hidden="true">↓</span> FOLLOW A FILE INTO ORBIT</span><span>BUILT FOR THE STORIES YOU KEEP <span aria-hidden="true">✦</span></span></div>
+    <div class="hero-copy-block">
+      ${eyebrow("YOUR STORIES. ONE CONSTELLATION.")}
+      <h1>Make room.<br><em>For everything.</em></h1>
+      <p class="hero-copy">Films you return to. Albums on repeat.<br> Books still waiting. Your whole media universe,<br> beautifully in order.</p>
+      <div class="actions"><button class="button primary" type="button" data-explore-lab>Explore Orion <span aria-hidden="true">↓</span></button><a class="button text-action" href="#install">Get started <span aria-hidden="true">↗</span></a></div>
+      <p class="hero-note">Local by design. Entirely yours.</p>
+    </div>
+    ${universeMarkup()}
+    <div class="hero-floor"><span><i class="small-dot"></i> OPEN SOURCE / PERSONAL MEDIA WORKSPACE</span><button data-explore-lab class="scroll-invitation" aria-label="Scroll to the interactive sample"><span aria-hidden="true">↓</span> THERE’S A LITTLE ORDER BELOW</button><span>SCROLL TO EXPLORE</span></div>
+  </section>
+  <section class="section sample-lab reveal" aria-labelledby="sample-lab-title">
+    <div class="sample-lab-copy">${eyebrow("FROM SCATTERED TO SORTED")}<h2 id="sample-lab-title">Less searching.<br><em>More finding.</em></h2><p>That filename means something.<br>Give it a title, a place, a little certainty.</p><p class="sample-lab-instruction">Try a movie, an album or a book.<br>Preview the path. Then see it settle into place.</p><div class="sample-lab-proof"><span>01 <b>Review</b></span><i>→</i><span>02 <b>Preview</b></span><i>→</i><span>03 <b>Organise</b></span></div><p class="sample-lab-footnote">Fictional sample. Your files stay untouched.</p></div>
+    <div class="sample-lab-workspace">${showcaseMarkup()}</div>
   </section>
   <section class="principles reveal" aria-label="Orion principles"><p><span>01</span> Local by design</p><p><span>02</span> Review before action</p><p><span>03</span> Never overwrite</p><p><span>04</span> Open source, always</p></section>
   ${storyMarkup()}
-  <section class="section collection-section reveal"><div class="section-heading"><div>${eyebrow("SEVEN COLLECTIONS. ONE GRAVITY.")}<h2>There’s room for<br><em>your whole universe.</em></h2></div><a class="text-link" href="#demo">Explore every collection ↗</a></div>${collectionList()}</section>
+  ${galleryMarkup()}
   <section class="section product-section reveal"><div class="section-heading"><div>${eyebrow("MEET YOUR MISSION CONTROL")}<h2>Clarity at<br><em>every step.</em></h2></div><div class="product-description"><p>A real workspace, with real decisions.<br>Not another folder you’ll forget about.</p><a class="text-link" href="#features">Inside the workspace →</a></div></div>
     <div class="product-frame"><div class="product-frame-top"><span><i></i><i></i><i></i></span><span>ORION / YOUR LOCAL WORKSPACE</span><span>↗</span></div>${screenshot("production-night.png", "The real Orion application in its night theme, with seven media collections and local job status.", "ACTUAL PRODUCT · Captured with generated test media, never a personal library.")}</div>
     <div class="product-details"><article><span aria-hidden="true">⌘</span><h3>All the detail.<br>None of the guesswork.</h3><p>Exact paths, metadata evidence, saved naming presets and a preview you can actually approve.</p></article><article><span aria-hidden="true">↶</span><h3>A record.<br>And a way back.</h3><p>Follow a durable job. Retry an interruption. Preview guarded undo for unchanged recorded files.</p></article><article><span aria-hidden="true">◇</span><h3>Your media.<br>On your terms.</h3><p>Keep files on your computer or NAS. Connect metadata providers or Jellyfin and Emby when you choose.</p></article></div>
@@ -213,9 +250,9 @@ function updateDemo() {
   const result = document.querySelector("#demo-result");
   if (!result) return;
   result.innerHTML = matches
-    ? '<article class="sample-card"><div class="sample-art" aria-hidden="true"><span>' +
-      c.glyph +
-      '</span><div class="sample-orbit"></div></div><div class="sample-details"><span class="tag">FICTIONAL SAMPLE · ' +
+    ? '<article class="sample-card"><div class="sample-art" aria-hidden="true">' +
+      mediaArtwork(selected) +
+      '</div><div class="sample-details"><span class="tag">FICTIONAL SAMPLE · ' +
       c.name +
       "</span><h3>" +
       c.title +
@@ -269,6 +306,7 @@ function render(focus = false) {
       mountShowcase(main.querySelector(".showcase")),
       mountScene(main.querySelector(".hero")),
       mountStory(main.querySelector(".file-story")),
+      mountGallery(main),
     ];
     cleanupPage = () => cleanups.forEach((cleanup) => cleanup());
   } else cleanupPage = () => {};
@@ -327,6 +365,18 @@ function render(focus = false) {
   }
 }
 main.addEventListener("click", (event) => {
+  if (event.target.closest("[data-explore-lab]")) {
+    const sample = main.querySelector(".sample-lab");
+    sample?.querySelector(".showcase")?.scrollIntoView({
+      block: "center",
+      behavior:
+        document.documentElement.dataset.motion === "running"
+          ? "smooth"
+          : "instant",
+    });
+    const firstControl = sample?.querySelector("button");
+    firstControl?.focus({ preventScroll: true });
+  }
   const card = event.target.closest("[data-demo-select]");
   if (card) selected = Number(card.dataset.demoSelect);
 });
