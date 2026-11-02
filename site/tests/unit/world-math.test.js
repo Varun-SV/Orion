@@ -121,6 +121,14 @@ test("framing pulls back on portrait screens and clears space for the headline o
   assert.ok(framing(1.8, 0).shiftX < 0);
   assert.ok(framing(1.8, 3).shiftX === 0);
   assert.ok(framing(0.5, 0).shiftY < 0);
+  // The scene stays in the upper half through the text chapters, a little less than at the opening.
+  assert.ok(framing(0.5, 3).shiftY < 0);
+  assert.ok(
+    Math.abs(framing(0.5, 3).shiftY) < Math.abs(framing(0.5, 0).shiftY),
+  );
+  assert.ok(
+    Math.abs(framing(0.5, 6).shiftY) < Math.abs(framing(0.5, 3).shiftY),
+  );
 });
 
 test("quality governor steps down fast, up slowly, and stops oscillating", () => {

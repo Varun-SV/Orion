@@ -24,6 +24,15 @@ One valid finding: loading with a saved pause preference (or pausing during the 
 
 The first CI run of the site job failed one docs-search test (45 of 46 passed): the software-rendered 3D scene kept the two-core runner busy long enough for a keyboard navigation to miss a 5 second wait. The application was not at fault. Tests that are not about the scene now start with animations paused, the site job runs one worker, and the default expect timeout is 10 seconds. The full suite passed locally with one worker (46 of 46 in 3.1 minutes).
 
+## Follow-up: phone feedback (2026-11-03)
+
+Screenshots from a real phone showed hard seams between chapters and text lost on a bright background. Causes found and fixed:
+
+- The dark backing behind text belonged to the whole chapter, so it ended abruptly at each chapter boundary. It now lives inside the pinned viewport and shares the text's fade, so nothing ends in an edge. A test checks that no chapter owns a backing edge and that backing and text share one opacity mid-transition.
+- The nebula's light grew with the number of sprites drawn, so the higher quality tiers on real devices washed out to a flat grey, which the lowest tier used in this environment's earlier screenshots hid. Total light is now the same at every tier, the core no longer clips, and portrait screens keep the cloud a little quieter. `?quality=high|medium|low` pins a tier (and turns adaptation off) so the worst case can be reproduced anywhere; the before and after were compared at high quality on a 390 by 844 viewport.
+- On portrait screens the scene now stays in the upper half through the text chapters, so the cloud no longer sits under the paragraph.
+- The seven star labels crowded the cover and text on phones and are hidden there; the collection list is the control. The opening reveal follows the wall clock even when frames are slow.
+
 ## Star data
 
 All eight star positions (right ascension and declination) were compared with the Wikipedia "List of stars in Orion" and the individual star articles for Alnilam, Mintaka and Meissa. Coordinates agree to the precision stored (0.0001 hour, 0.0001 degree). Magnitudes are rounded and several of these stars are variable, so they only scale how large a star is drawn. The seven collections map to the seven brightest stars, in the order Betelgeuse, Bellatrix, Mintaka, Alnilam, Alnitak, Saiph, Rigel.

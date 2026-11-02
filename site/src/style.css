@@ -404,39 +404,51 @@ main {
   opacity: 1;
   transform: none;
 }
-.chapter::before {
+/* A readable backing for each pinned chapter. It lives inside the pinned viewport and fades with
+   the chapter's text, so there is never a hard edge where one chapter ends and the next begins. */
+.pin::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: -1;
+  opacity: min(var(--enter, 1), var(--leave, 1));
   background: linear-gradient(
     90deg,
-    rgba(2, 4, 10, 0.78) 0%,
-    rgba(2, 4, 10, 0.4) 45%,
-    transparent 75%
+    rgba(2, 4, 10, 0.88) 0%,
+    rgba(2, 4, 10, 0.64) 36%,
+    rgba(2, 4, 10, 0.2) 66%,
+    transparent 86%
   );
 }
-.chapter--scan::before,
-.chapter--recover::before {
+.chapter--scan .pin::before,
+.chapter--recover .pin::before {
   background: linear-gradient(
     270deg,
-    rgba(2, 4, 10, 0.78) 0%,
-    rgba(2, 4, 10, 0.4) 45%,
-    transparent 75%
+    rgba(2, 4, 10, 0.88) 0%,
+    rgba(2, 4, 10, 0.64) 36%,
+    rgba(2, 4, 10, 0.2) 66%,
+    transparent 86%
   );
 }
-.chapter--preview::before {
+.chapter--preview .pin::before {
   background: linear-gradient(
     0deg,
-    rgba(2, 4, 10, 0.82) 0%,
-    rgba(2, 4, 10, 0.4) 50%,
-    transparent 85%
+    rgba(2, 4, 10, 0.9) 0%,
+    rgba(2, 4, 10, 0.62) 40%,
+    rgba(2, 4, 10, 0.2) 68%,
+    transparent 90%
   );
 }
-.chapter--try::before,
-.chapter--install::before {
-  background: rgba(2, 4, 10, 0.55);
+.pin > .panel,
+.pin > .split {
+  position: relative;
+  z-index: 1;
+}
+.lede,
+.fine,
+.eyebrow,
+.facts span {
+  text-shadow: 0 1px 16px rgba(2, 4, 10, 0.9);
 }
 .eyebrow {
   display: flex;
@@ -653,14 +665,16 @@ html[data-motion="running"] .scroll-cue i {
     align-items: end;
     padding-bottom: 76px;
   }
-  .chapter::before,
-  .chapter--scan::before,
-  .chapter--recover::before {
+  .pin::before,
+  .chapter--scan .pin::before,
+  .chapter--recover .pin::before,
+  .chapter--preview .pin::before {
     background: linear-gradient(
       0deg,
-      rgba(2, 4, 10, 0.88) 0%,
-      rgba(2, 4, 10, 0.5) 55%,
-      transparent 90%
+      rgba(2, 4, 10, 0.94) 0%,
+      rgba(2, 4, 10, 0.84) 42%,
+      rgba(2, 4, 10, 0.5) 66%,
+      transparent 94%
     );
   }
   .chapter--landing .scroll-cue {
@@ -672,6 +686,12 @@ html[data-motion="running"] .scroll-cue i {
   .pin {
     align-items: end;
     padding-bottom: 7vh;
+  }
+}
+
+@media (max-width: 860px) {
+  .star-label {
+    display: none;
   }
 }
 
@@ -890,8 +910,8 @@ html[data-motion="running"] .scroll-cue i {
   background: linear-gradient(
     to bottom,
     transparent,
-    rgba(2, 4, 10, 0.55) 18%,
-    rgba(2, 4, 10, 0.55) 82%,
+    rgba(2, 4, 10, 0.78) 18%,
+    rgba(2, 4, 10, 0.78) 82%,
     transparent
   );
 }

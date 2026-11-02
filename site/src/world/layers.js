@@ -208,9 +208,9 @@ export function createNebula(count, pr) {
     const dist = Math.hypot(x - c.x, y - c.y) / 14;
     const pick = palette[Math.floor(r() * (dist < 0.35 ? 3 : palette.length))];
     const core = 1 - Math.min(1, dist);
-    const k = 0.55 + core * 0.6;
+    const k = 0.8 + core * 0.25;
     col.set([pick[0] * k, pick[1] * k, pick[2] * k], i * 3);
-    size[i] = 26 + r() * 70 + core * 30;
+    size[i] = 26 + r() * 70 + core * 12;
     seed[i] = r() * 100;
     hot[i] = i % 23 === 0 ? 1 : 0;
   }
