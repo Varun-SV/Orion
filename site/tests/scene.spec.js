@@ -216,3 +216,26 @@ test("pausing during the opening completes it instead of leaving a half-lit sky"
   await expect(betelgeuse).toBeVisible({ timeout: 25000 });
   await expect(betelgeuse).toHaveCSS("opacity", "1");
 });
+
+test("?quality= pins the quality tier and turns adaptation off", async ({
+  page,
+}) => {
+  for (const tier of ["high", "low"]) {
+    await page.goto("./?quality=" + tier);
+    await expect(page.locator("html")).toHaveAttribute("data-scene", "webgl", {
+      timeout: 20000,
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-tier", tier);
+    await expect
+      .poll(
+        async () =>
+          Number(await page.locator("html").getAttribute("data-frames")),
+        {
+          timeout: 25000,
+        },
+      )
+      .toBeGreaterThan(10);
+    // Even after many slow software frames the pinned tier does not move.
+    await expect(page.locator("html")).toHaveAttribute("data-tier", tier);
+  }
+});

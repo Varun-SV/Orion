@@ -149,3 +149,46 @@ for (const [width, height] of [
     }
   });
 }
+
+test("text backing fades with its chapter and never ends in a hard edge", async ({
+  page,
+}) => {
+  await openHome(page);
+  // The backing belongs to the pinned viewport, not to the whole chapter, so a chapter boundary cannot
+  // cut it off; only the sample and install pages keep a soft-edged background of their own.
+  for (const id of ["overview", "features", "scan", "preview", "recovery"]) {
+    const info = await page.evaluate((id) => {
+      const chapter = document.getElementById(id);
+      return {
+        chapterBefore: getComputedStyle(chapter, "::before").content,
+        pinBefore: getComputedStyle(chapter.querySelector(".pin"), "::before")
+          .content,
+      };
+    }, id);
+    expect(info.chapterBefore, `${id} chapter edge`).toBe("none");
+    expect(info.pinBefore, `${id} pinned backing`).not.toBe("none");
+  }
+  // Mid-transition the backing and the text share one opacity.
+  await scrollToChapter(page, "preview", 0.97);
+  const read = () =>
+    page.evaluate(() => {
+      const pin = document.querySelector("#preview .pin");
+      return [
+        Number(getComputedStyle(pin, "::before").opacity),
+        Number(getComputedStyle(pin.querySelector(".panel")).opacity),
+      ];
+    });
+  await expect.poll(async () => (await read())[1]).toBeLessThan(1);
+  const [backing, text] = await read();
+  expect(backing).toBeCloseTo(text, 2);
+});
+
+test("phones hide the star labels that would crowd the text", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openHome(page);
+  await scrollToChapter(page, "features", 0.5);
+  await expect(page.locator('.star-label[data-collection="2"]')).toBeHidden();
+  await expect(page.locator(".collection-list button").first()).toBeVisible();
+});

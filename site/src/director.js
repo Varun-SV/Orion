@@ -92,7 +92,12 @@ export function framing(aspect, u) {
   return {
     back,
     shiftX: portrait ? 0 : -20 * opening * clamp((aspect - 1) / 0.8),
-    shiftY: portrait ? -(14 + 26 * (1 - aspect)) * opening : 0,
+    // On a portrait screen the text sits in the lower half, so the scene stays in the upper half
+    // all the way through the text chapters, and relaxes only for the sample and install pages.
+    shiftY: portrait
+      ? -(14 + 26 * (1 - aspect)) *
+        (opening + (1 - opening) * 0.62 * (1 - smooth(4.8, 5.4, u)))
+      : 0,
   };
 }
 

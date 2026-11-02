@@ -27,12 +27,19 @@ export function createWorld(canvas, options = {}) {
   } = options;
   const nav = navigator;
   const coarse = matchMedia("(pointer: coarse)").matches;
-  const start = initialTier({
-    coarsePointer: coarse,
-    saveData: Boolean(nav.connection?.saveData),
-    cores: nav.hardwareConcurrency || 8,
-    memory: nav.deviceMemory || 8,
-  });
+  // ?quality=high|medium|low pins the tier (and turns adaptation off) for testing and support.
+  const forcedTier = ["high", "medium", "low"].indexOf(
+    new URLSearchParams(location.search).get("quality"),
+  );
+  const start =
+    forcedTier >= 0
+      ? forcedTier
+      : initialTier({
+          coarsePointer: coarse,
+          saveData: Boolean(nav.connection?.saveData),
+          cores: nav.hardwareConcurrency || 8,
+          memory: nav.deviceMemory || 8,
+        });
 
   // Ask for the context ourselves so an unsupported browser falls back quietly, without
   // three.js writing an error to the console.
@@ -107,6 +114,7 @@ export function createWorld(canvas, options = {}) {
     focusX = byCollection[0].x,
     focusY = byCollection[0].y,
     focusIndex = 0,
+    nebulaGain = 1,
     lostFlag = false;
   let motion = "running"; // running | paused | reduced
 
@@ -121,7 +129,10 @@ export function createWorld(canvas, options = {}) {
       0,
       Math.floor(total.backdrop * (tier.scale >= 1 ? 1 : 0.7)),
     );
-    nebula.geometry.setDrawRange(0, Math.floor(total.nebula * tier.nebula));
+    const drawn = Math.max(1, Math.floor(total.nebula * tier.nebula));
+    nebula.geometry.setDrawRange(0, drawn);
+    // More sprites must not mean a brighter cloud: keep the total light the same at every tier.
+    nebulaGain = (0.55 * total.nebula) / drawn;
     files.geometry.setDrawRange(0, Math.floor(total.files * tier.particles));
     resize(true);
   }
@@ -150,7 +161,7 @@ export function createWorld(canvas, options = {}) {
     if (live) {
       time += dt;
       // The opening runs on the wall clock so slow frames cannot stretch it.
-      intro = clamp(intro + Math.min(rawDt / 1000, 0.5) / INTRO_SECONDS);
+      intro = clamp(intro + Math.min(rawDt / 1000, 3) / INTRO_SECONDS);
     } else if (motion === "reduced") {
       intro = 1;
     }
@@ -208,7 +219,12 @@ export function createWorld(canvas, options = {}) {
     setUniform("uFocus", focusIndex);
     setUniform("uFocusAmt", state.focus);
     setUniform("uHover", hover);
-    setUniform("uAmount", state.nebula * smooth(0.05, 0.7, intro));
+    // Portrait screens show the cloud larger, so it is kept a little quieter behind the text.
+    const quiet = camera.aspect < 1 ? 0.62 : 1.3;
+    setUniform(
+      "uAmount",
+      state.nebula * smooth(0.05, 0.7, intro) * nebulaGain * quiet,
+    );
     setUniform("uOrder", state.order);
     setUniform("uRewind", state.rewind);
     setUniform("uVerify", state.verify);
@@ -232,7 +248,7 @@ export function createWorld(canvas, options = {}) {
     frames++;
     if (live && rawDt > 0) {
       msSum += rawDt;
-      const next = governor.sample(rawDt);
+      const next = forcedTier >= 0 ? null : governor.sample(rawDt);
       if (next !== null) {
         tier = TIERS[next];
         applyTier();
