@@ -301,7 +301,9 @@ export function createWorld(canvas, options = {}) {
       if (mode === motion) return;
       motion = mode;
       last = 0;
-      if (mode === "reduced") intro = 1;
+      // The opening reveal is decorative. If motion stops (reduced, or paused before or during it),
+      // show the finished sky at once so no star, line or label is left unlit.
+      if (mode !== "running") intro = 1;
       invalidate();
     },
     start() {

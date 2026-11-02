@@ -179,3 +179,40 @@ test("the scene recovers from a lost WebGL context", async ({ page }) => {
     .toBeGreaterThan(before);
   expect(problems).toEqual([]);
 });
+
+test("a saved pause preference still shows the complete constellation and labels", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("orion-site-motion", "paused");
+    } catch {}
+  });
+  await page.goto("./");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "paused");
+  await expect(page.locator("html")).toHaveAttribute("data-scene", "webgl", {
+    timeout: 20000,
+  });
+  const rigel = page.locator('.star-label[data-collection="6"]');
+  await expect(rigel).toBeVisible({ timeout: 25000 });
+  await expect(rigel).toHaveCSS("opacity", "1");
+  await scrollToChapter(page, "features", 0.5);
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-chapter",
+    "features",
+  );
+});
+
+test("pausing during the opening completes it instead of leaving a half-lit sky", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHome(page);
+  await page
+    .getByRole("button", { name: "Pause animations", exact: true })
+    .click();
+  const betelgeuse = page.locator('.star-label[data-collection="0"]');
+  await expect(betelgeuse).toBeVisible({ timeout: 25000 });
+  await expect(betelgeuse).toHaveCSS("opacity", "1");
+});
