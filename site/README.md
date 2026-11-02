@@ -1,6 +1,6 @@
 # Orion public project site
 
-The observatory website is a self-contained Vite build at the GitHub Pages repository prefix `/Orion/`. Its midnight/teal visual system opens with a luminous Canvas constellation and original illustrated media covers, followed immediately by an interactive sample organiser, a four-chapter scroll story, native page transitions, bounded parallax and reveals. The static site never accesses the installed app API or a visitor's files. Every simulated action remains labelled.
+The public website is a self-contained Vite build at the GitHub Pages repository prefix `/Orion/`. It is one continuous scroll-driven flight through a real star field: Orion's seven brightest stars are the seven collections, the Orion Nebula is the unsorted pile, and files are particles that settle into ordered lanes and can be rewound. The page text is complete HTML before any 3D code loads. The static site never accesses the installed app API or a visitor's files, and every simulated action remains labelled fictional.
 
 ## Develop and verify
 
@@ -15,7 +15,7 @@ npm --prefix site test
 npm --prefix site run dev
 ```
 
-Tests serve the production build at `http://127.0.0.1:4174/Orion/`. For local use with an installed compatible browser, set `PLAYWRIGHT_EXECUTABLE_PATH` to its absolute path. CI installs Playwright Chromium. Responsive checks cover 360, 390, 768, 1280 and 1600px, every public route, theme persistence, reduced motion, sample actions, static docs, local search and code copying.
+Tests serve the production build at `http://127.0.0.1:4174/Orion/`. For local use with an installed compatible browser, set `PLAYWRIGHT_EXECUTABLE_PATH` to its absolute path. CI installs Playwright Chromium. Tests run the 3D scene on software WebGL, and also with WebGL removed, with reduced motion, after a lost context, and at 360, 390, 768, 1280 and 1600px. They cover every chapter, the sample actions, static docs, local search and code copying.
 
 ## Documentation
 
@@ -23,8 +23,17 @@ Tests serve the production build at `http://127.0.0.1:4174/Orion/`. For local us
 
 `public/docs/docs.js` enhances the guides with local search and copy-code controls, with visible failure feedback. `public/docs/search.js` and `search.css` add a shared native dialog on the showcase and all guides: header search, Ctrl/Cmd+K, keyboard navigation, safe local results, focus restoration, and a browse-all fallback when the index is unavailable. `public/docs/document.css` provides the responsive reading layout. No network Markdown renderer or runtime CDN is required. Generated `.generated/`, dependencies, browser reports and `dist/` remain ignored.
 
-## Motion and assets
+## The 3D scene
 
-`src/motion.js` owns page parallax, reveal/visibility observers and page transitions. `src/scene.js` renders deterministic orbital particles with Canvas 2D at a bounded frame rate; it stops offscreen or when hidden, refreshes on theme changes, and falls back to SVG when Canvas is unavailable. `src/story.js` connects natural scrolling and explicit chapter selection to the media journey, with passive listeners and route cleanup. Scrolling is never intercepted. Device reduced motion and the persistent Pause animations control disable decorative activity. `src/media-art.js` renders original SVG covers for all seven fictional collections. `src/gallery.js` lets visitors select a collection and continue into its matching fixture demo. The opening’s Explore button scrolls directly to the working sample; narrow screens use an expandable keyboard-accessible navigation menu. Visual-layout tests retain desktop, tablet and phone screenshots as QA artifacts. Night is the default; existing Ivory and Clay choices remain available. Local fonts and their full licence texts are included. Product screenshots show the real app with generated test media; the fixture showcase and story share fictional media.
+| File | Role |
+|------|------|
+| `src/main.js` | Builds the page, owns scroll, header, hash routes and motion state, and loads the scene after first paint |
+| `src/content.js` | Chapter markup; claims come from the README and docs |
+| `src/director.js` | Pure functions: scroll position to chapter, camera pose and world state. Unit-tested |
+| `src/quality.js` | Pure frame-time governor with three quality tiers. Unit-tested |
+| `src/stars-data.js` | Right ascension and declination of Orion's principal stars and the nebula, projected onto the sky. Unit-tested |
+| `src/world/` | three.js renderer, layers (backdrop, stars, constellation lines, nebula, file particles, verification ring), render loop and context-loss handling |
+
+Rules the scene keeps: native scrolling only (no wheel hijacking); the loop stops when the tab is hidden, the user pauses or reduced motion is set; resolution and particle counts step down automatically when frames are slow and step up only after a sustained good period; no WebGL2, a failed start or a lost context shows an SVG constellation and keeps every fact available as HTML; reduced motion renders still frames per chapter. All stars, dust and the nebula are procedural, so there are no downloaded images or textures. `three` (MIT) is bundled from npm, with its licence on the generated licences page. Local fonts and their licence texts are included. Product screenshots show the real app with generated test media; the sample and covers use fictional media.
 
 Only `site/dist` is uploaded/deployed. The existing Pages workflow waits for the strict CI gate on main; no application backend, personal media or development files are included in the published artifact.

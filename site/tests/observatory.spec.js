@@ -1,97 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { docsManifest } from "../docs/manifest.mjs";
 
-test("the visual opening leads directly to a working organising sample", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("./");
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "night");
-  const sample = page.getByRole("region", {
-    name: "Interactive organising sample",
-  });
-  await expect(sample).toBeVisible();
-  const box = await sample.boundingBox();
-  const hero = await page.locator(".hero").boundingBox();
-  expect(box.y).toBeGreaterThanOrEqual(hero.y + hero.height);
-  await page
-    .getByRole("button", { name: "Explore Orion", exact: true })
-    .click();
-  await expect(sample).toBeInViewport({ ratio: 0.6 });
-  await expect(sample.getByText(/fictional sample/i)).toBeVisible();
-  await sample.getByRole("button", { name: "Preview sample plan" }).click();
-  await expect(sample.getByTestId("hero-plan")).toContainText(
-    "Movies/The Lantern (2024)",
-  );
-  await sample.getByRole("button", { name: "Simulate organisation" }).click();
-  await expect(sample.getByRole("status")).toContainText(
-    "No files were moved.",
-  );
-  await sample.getByRole("button", { name: "Reset sample" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(
-    sample.getByRole("button", { name: "Preview sample plan" }),
-  ).toBeFocused();
-  await sample
-    .getByRole("button", { name: "Sample Music", exact: true })
-    .click();
-  await sample.getByRole("button", { name: "Preview sample plan" }).click();
-  await expect(sample.getByTestId("hero-plan")).toContainText(
-    "Music/Sample Artist/",
-  );
-});
-
-test("motion can be paused persistently without disabling navigation or the sample", async ({
-  page,
-}) => {
-  await page.goto("./");
-  await page
-    .getByRole("button", { name: "Pause animations", exact: true })
-    .click();
-  await expect(page.locator("html")).toHaveAttribute("data-motion", "paused");
-  await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Resume animations", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Features", exact: true })
-    .click();
-  await expect(page).toHaveTitle("Features · Orion");
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Overview", exact: true })
-    .click();
-  await page
-    .getByRole("region", { name: "Interactive organising sample" })
-    .getByRole("button", { name: "Preview sample plan" })
-    .click();
-  await expect(page.getByTestId("hero-plan")).toBeVisible();
-});
-
-test("reduced motion removes decorative activity while keeping the content usable", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("./");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  expect(
-    await page
-      .locator("html")
-      .evaluate((el) => getComputedStyle(el).scrollBehavior),
-  ).toBe("auto");
-  const animated = await page
-    .locator(".orbit-decoration, .constellation, .ambient-star")
-    .evaluateAll((nodes) =>
-      nodes.some(
-        (node) =>
-          getComputedStyle(node).animationName !== "none" &&
-          getComputedStyle(node).animationDuration !== "0s",
-      ),
-    );
-  expect(animated).toBe(false);
-});
-
 test("every public guide has static text and local documentation navigation", async ({
   browser,
   request,
@@ -136,16 +45,11 @@ test("every public guide has static text and local documentation navigation", as
   }
 });
 
-test("homepage documentation search returns local guides and code can be copied", async ({
+test("documentation search results are local and code can be copied", async ({
   page,
   context,
 }) => {
-  await page.goto("./");
-  await page
-    .getByRole("searchbox", { name: "Search documentation" })
-    .fill("keychain");
-  await page.getByRole("button", { name: "Search guides" }).click();
-  await expect(page).toHaveURL(/\/Orion\/docs\/\?q=keychain/);
+  await page.goto("./docs/?q=keychain");
   const results = page.getByRole("region", { name: "Search results" });
   await expect(results.getByRole("link").first()).toBeVisible();
   const hrefs = await results

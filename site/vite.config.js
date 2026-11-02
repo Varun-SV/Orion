@@ -72,5 +72,7 @@ function documentationPlugin() {
 
 export default defineConfig({
   base: "/Orion/",
+  // The only large chunk is the lazily loaded 3D scene; the page is readable before it arrives.
+  build: { chunkSizeWarningLimit: 650 },
   plugins: [documentationPlugin()],
 });

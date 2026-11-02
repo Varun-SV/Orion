@@ -1,17 +1,29 @@
 import { defineConfig } from "@playwright/test";
+// Software WebGL keeps the 3D scene deterministic on machines and CI runners without a GPU.
+const args = [
+  "--use-gl=angle",
+  "--use-angle=swiftshader",
+  "--enable-unsafe-swiftshader",
+  "--ignore-gpu-blocklist",
+];
 export default defineConfig({
   testDir: "./tests",
   testIgnore: ["**/unit/**"],
-  timeout: 30000,
+  timeout: 60000,
   fullyParallel: true,
-  workers: process.env.CI ? 2 : 3,
+  // Software WebGL is CPU-bound, so CI runs one worker to keep timings honest.
+  workers: process.env.CI ? 1 : 2,
+  expect: { timeout: 10000 },
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:4174/Orion/",
     browserName: "chromium",
-    launchOptions: process.env.PLAYWRIGHT_EXECUTABLE_PATH
-      ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
-      : {},
+    launchOptions: {
+      args,
+      ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
+        ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
+        : {}),
+    },
     trace: "retain-on-failure",
   },
   webServer: {
