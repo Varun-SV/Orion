@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { calmScene } from "./helpers.js";
+
+test.use({ storageState: calmScene });
 
 test("standalone documentation and licences render with working local assets", async ({
   page,

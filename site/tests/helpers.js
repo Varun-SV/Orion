@@ -62,3 +62,15 @@ export async function scrollToChapter(page, id, fraction = 0) {
 
 export const noOverflow = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+
+// Tests that are not about the 3D scene start with animations paused, so a slow software-GL runner
+// is not busy rendering while they exercise search, links or the sample.
+export const calmScene = {
+  cookies: [],
+  origins: [
+    {
+      origin: "http://127.0.0.1:4174",
+      localStorage: [{ name: "orion-site-motion", value: "paused" }],
+    },
+  ],
+};

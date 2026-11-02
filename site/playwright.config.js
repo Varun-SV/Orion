@@ -11,7 +11,9 @@ export default defineConfig({
   testIgnore: ["**/unit/**"],
   timeout: 60000,
   fullyParallel: true,
-  workers: 2,
+  // Software WebGL is CPU-bound, so CI runs one worker to keep timings honest.
+  workers: process.env.CI ? 1 : 2,
+  expect: { timeout: 10000 },
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:4174/Orion/",

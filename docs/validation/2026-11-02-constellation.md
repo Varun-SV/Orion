@@ -20,6 +20,10 @@ Three valid findings, each fixed with a regression test:
 
 One valid finding: loading with a saved pause preference (or pausing during the opening) left the opening reveal at zero, so the stars, lines, nebula and star labels never appeared. The opening is decorative, so when motion is not running it now completes at once and the finished sky is shown. Two new tests (saved preference at load, and pausing mid-opening) fail without the change and pass with it.
 
+## CI timing
+
+The first CI run of the site job failed one docs-search test (45 of 46 passed): the software-rendered 3D scene kept the two-core runner busy long enough for a keyboard navigation to miss a 5 second wait. The application was not at fault. Tests that are not about the scene now start with animations paused, the site job runs one worker, and the default expect timeout is 10 seconds. The full suite passed locally with one worker (46 of 46 in 3.1 minutes).
+
 ## Star data
 
 All eight star positions (right ascension and declination) were compared with the Wikipedia "List of stars in Orion" and the individual star articles for Alnilam, Mintaka and Meissa. Coordinates agree to the precision stored (0.0001 hour, 0.0001 degree). Magnitudes are rounded and several of these stars are variable, so they only scale how large a star is drawn. The seven collections map to the seven brightest stars, in the order Betelgeuse, Bellatrix, Mintaka, Alnilam, Alnitak, Saiph, Rigel.

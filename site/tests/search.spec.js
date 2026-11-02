@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { calmScene } from "./helpers.js";
+
+test.use({ storageState: calmScene });
 
 test("command search opens from the header and returns focus when dismissed", async ({
   page,
