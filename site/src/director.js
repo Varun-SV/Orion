@@ -16,6 +16,10 @@ const smooth = (a, b, v) => {
 };
 const smoother = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 
+// Frame-rate independent exponential follower: the same blend per second at any frame rate.
+export const damp = (current, target, dt, rate) =>
+  current + (target - current) * (1 - Math.exp(-Math.max(0, dt) * rate));
+
 // Camera holds on the chapter for its first third, then travels to the next anchor.
 export const holdEase = (local) => smoother(clamp((local - 0.3) / 0.7));
 

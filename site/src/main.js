@@ -180,17 +180,19 @@ function apply() {
       (b, k) => (b.dataset.active = String(k === collection)),
     );
   }
-  // Fade each pinned chapter's text in and out around its own scroll range.
+  // Each chapter's text is fully visible as soon as the chapter is pinned (so an anchor link lands on
+  // readable content), fades in while the chapter scrolls up into view, and fades out as it ends.
   sections.forEach((section, i) => {
     const near = Math.abs(i - info.index) <= 1;
     section.classList.toggle("is-near", near);
     if (!near) return;
-    let local;
-    if (i < info.index) local = 1.01;
-    else if (i > info.index) local = -0.01;
-    else local = info.local;
-    const enter = i === 0 ? 1 : clamp(local / 0.1);
-    const leave = i >= sections.length - 2 ? 1 : clamp((1 - local) / 0.12);
+    let enter = 1,
+      leave = 1;
+    if (i > info.index) {
+      const rise = clamp((scrollY + vh - tops[i]) / vh);
+      enter = clamp((rise - 0.35) / 0.65);
+    } else if (i < info.index) leave = 0;
+    else if (i < sections.length - 2) leave = clamp((1 - info.local) / 0.12);
     section.style.setProperty("--enter", enter.toFixed(3));
     section.style.setProperty("--leave", leave.toFixed(3));
   });

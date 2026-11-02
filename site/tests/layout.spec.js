@@ -124,3 +124,66 @@ test("the sample never contacts the local app or any other origin", async ({
     ),
   ).toEqual([]);
 });
+
+test("every chapter's text is visible and readable when reached by an anchor link", async ({
+  page,
+}) => {
+  await openHome(page);
+  for (const id of ["features", "scan", "preview", "recovery"]) {
+    await page.goto("./#" + id);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-chapter", id, {
+      timeout: 15000,
+    });
+    const panel = page.locator(`#${id} .panel`).first();
+    await expect(panel).toHaveCSS("opacity", "1");
+    await expect(page.locator(`#${id} h2`)).toBeVisible();
+  }
+  // And through the page's own links.
+  await page.goto("./");
+  await page.getByRole("link", { name: /Begin the descent/ }).click();
+  await expect(page.locator("#features .panel").first()).toHaveCSS(
+    "opacity",
+    "1",
+  );
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Recovery & privacy" })
+    .click();
+  await expect(page.locator("#recovery .panel").first()).toHaveCSS(
+    "opacity",
+    "1",
+  );
+});
+
+for (const [width, height] of [
+  [844, 390],
+  [667, 375],
+  [740, 360],
+]) {
+  test(`pinned chapters keep every control inside a short ${width}x${height} viewport`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await openHome(page);
+    for (const id of ["overview", "features", "scan", "preview", "recovery"]) {
+      await scrollToChapter(page, id, 0.4);
+      await page.waitForTimeout(80);
+      const outside = await page.evaluate((id) => {
+        const bad = [];
+        for (const el of document.querySelectorAll(
+          `#${id} .pin a, #${id} .pin button, #${id} .pin h1, #${id} .pin h2`,
+        )) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          if (r.top < 40 || r.bottom > innerHeight + 1)
+            bad.push(
+              `${el.tagName} ${el.textContent.trim().slice(0, 24)} ${Math.round(r.top)}-${Math.round(r.bottom)}`,
+            );
+        }
+        return bad;
+      }, id);
+      expect(outside, `${id} at ${width}x${height}`).toEqual([]);
+    }
+  });
+}

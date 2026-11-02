@@ -4,9 +4,17 @@ The public site was rebuilt as a scroll-driven 3D flight through Orion's real st
 
 ## Local evidence
 
-- Site unit tests: **14 passed** (6 existing documentation-generator tests and 8 new tests for star data, scroll director and quality governor). The director test walks every scroll pixel across all chapter boundaries and fails on any backwards step or jump; the world test walks the whole flight and fails on any non-finite or discontinuous camera or state value.
-- Playwright suite against the production build: **40 passed** in 2.8 minutes with software WebGL. It covers scene start-up with no console, page or network errors; the headline being readable with the 3D chunk blocked; every chapter activating in order; the seven stars mapping to the seven collections (list, scroll and clicking a star in the sky); pause stopping the render loop; recovery from a lost WebGL context; the SVG fallback with WebGL removed (chapters, sample and overflow); reduced motion; no horizontal overflow or clipped headings at 360, 390, 768, 1280 and 1600px; the mobile menu; hash routes after reload; truthful install claims with no release download linked; the sample making no request outside the site or to the local app; and the existing documentation, search and licence tests.
+- Site unit tests: **15 passed** (6 existing documentation-generator tests and 9 new tests for star data, scroll director, damping and quality governor). The director test walks every scroll pixel across all chapter boundaries and fails on any backwards step or jump; the world test walks the whole flight and fails on any non-finite or discontinuous camera or state value.
+- Playwright suite against the production build: **44 passed** in 3.4 minutes with software WebGL. It covers scene start-up with no console, page or network errors; the headline being readable with the 3D chunk blocked; every chapter activating in order; the seven stars mapping to the seven collections (list, scroll and clicking a star in the sky); pause stopping the render loop; recovery from a lost WebGL context; the SVG fallback with WebGL removed (chapters, sample and overflow); reduced motion; no horizontal overflow or clipped headings at 360, 390, 768, 1280 and 1600px; the mobile menu; hash routes after reload; truthful install claims with no release download linked; the sample making no request outside the site or to the local app; and the existing documentation, search and licence tests.
 - Production bundle: the page's entry JavaScript is 10.9 KB gzip and its CSS 5.4 KB gzip. The three.js scene is a separate lazily loaded chunk of 134.9 KB gzip, started after first paint. The headline and every fact are HTML, so nothing waits on it.
+
+## Review round 1 (Codex)
+
+Three valid findings, each fixed with a regression test:
+
+- Anchor links landed on a chapter whose text was still at zero opacity. Text is now fully visible once its chapter is pinned and fades in while the chapter scrolls up into view. New test follows the nav links and reloads each hash route and checks the panel's computed opacity.
+- Changing collection cut the camera by about six world units. The focus position now follows the chosen star through a frame-rate-independent damper (unit-tested), and snaps only for reduced motion.
+- On a landscape phone the pinned chapters clipped their controls. A short-viewport layout (two-column collections, tighter type) keeps every control inside the screen. New tests check 844x390, 667x375 and 740x360 for each pinned chapter. The same check showed the nebula over-exposed on short screens, so point sizes now follow screen height.
 
 ## Star data
 

@@ -14,6 +14,7 @@ import {
   locate,
   activeCollection,
   cameraPose,
+  damp,
   framing,
   worldState,
 } from "../../src/director.js";
@@ -152,4 +153,25 @@ test("quality governor steps down fast, up slowly, and stops oscillating", () =>
     "no oscillation after repeated failed attempts",
   );
   assert.ok(g.tier <= TIERS.length - 1);
+});
+
+test("damping glides toward a target without overshoot and is frame-rate independent", () => {
+  let a = 0;
+  for (let i = 0; i < 40; i++) {
+    const next = damp(a, 10, 1 / 60, 6);
+    assert.ok(
+      next > a && next < 10,
+      "moves toward the target and never passes it",
+    );
+    a = next;
+  }
+  // One 20 ms step equals two 10 ms steps.
+  const once = damp(0, 8, 0.02, 6);
+  const twice = damp(damp(0, 8, 0.01, 6), 8, 0.01, 6);
+  assert.ok(Math.abs(once - twice) < 1e-9);
+  assert.equal(damp(3, 9, 0, 6), 3);
+  assert.equal(damp(3, 9, -1, 6), 3);
+  // A jump of a selected star (about 6 world units) is spread over many frames, not one.
+  const first = damp(0, 6, 1 / 60, 6);
+  assert.ok(first < 0.7);
 });

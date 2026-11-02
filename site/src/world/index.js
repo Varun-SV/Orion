@@ -1,5 +1,5 @@
 import { PerspectiveCamera, Scene, Vector3, WebGLRenderer } from "three";
-import { cameraPose, framing, worldState } from "../director.js";
+import { cameraPose, damp, framing, worldState } from "../director.js";
 import { TIERS, createGovernor, initialTier } from "../quality.js";
 import {
   createBackdrop,
@@ -104,6 +104,9 @@ export function createWorld(canvas, options = {}) {
     pointerY = 0,
     smoothX = 0,
     smoothY = 0,
+    focusX = byCollection[0].x,
+    focusY = byCollection[0].y,
+    focusIndex = 0,
     lostFlag = false;
   let motion = "running"; // running | paused | reduced
 
@@ -114,7 +117,6 @@ export function createWorld(canvas, options = {}) {
 
   function applyTier() {
     renderer.setPixelRatio(pixelRatio());
-    setUniform("uPR", renderer.getPixelRatio());
     backdrop.geometry.setDrawRange(
       0,
       Math.floor(total.backdrop * (tier.scale >= 1 ? 1 : 0.7)),
@@ -131,6 +133,8 @@ export function createWorld(canvas, options = {}) {
     width = w;
     height = h;
     renderer.setSize(w, h, false);
+    // Point sizes follow the screen height, so a short landscape view is not over-exposed.
+    setUniform("uPR", renderer.getPixelRatio() * clamp(h / 900, 0.5, 1.3));
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     invalidate();
@@ -152,7 +156,7 @@ export function createWorld(canvas, options = {}) {
     }
     // Camera follower: damped with the wheel, cut straight to the chapter for reduced motion.
     const goal = motion === "reduced" ? target.index : target.u;
-    u = live && frames > 0 ? u + (goal - u) * (1 - Math.exp(-dt * 5.5)) : goal;
+    u = live && frames > 0 ? damp(u, goal, dt, 5.5) : goal;
     if (Math.abs(goal - u) < 0.0005) u = goal;
     smoothX += (pointerX - smoothX) * (1 - Math.exp(-dt * 4));
     smoothY += (pointerY - smoothY) * (1 - Math.exp(-dt * 4));
@@ -161,17 +165,24 @@ export function createWorld(canvas, options = {}) {
     cameraPose(u, pose);
     const aspect = camera.aspect;
     const f = framing(aspect, u);
-    const focusStar =
+    // The focus follows the chosen star smoothly, so changing collection glides rather than cuts.
+    const chosen =
       target.collection >= 0 ? byCollection[target.collection] : null;
-    const fa = focusStar ? state.focus : 0;
+    if (chosen) {
+      const follow = live && frames > 0;
+      focusX = follow ? damp(focusX, chosen.x, dt, 6) : chosen.x;
+      focusY = follow ? damp(focusY, chosen.y, dt, 6) : chosen.y;
+      focusIndex = target.collection;
+    }
+    const fa = state.focus;
     look.set(
-      pose.l[0] + (focusStar ? (focusStar.x - pose.l[0]) * 0.55 * fa : 0),
-      pose.l[1] + (focusStar ? (focusStar.y - pose.l[1]) * 0.55 * fa : 0),
+      pose.l[0] + (focusX - pose.l[0]) * 0.55 * fa,
+      pose.l[1] + (focusY - pose.l[1]) * 0.55 * fa,
       pose.l[2],
     );
     tmp.set(
-      pose.p[0] + (focusStar ? focusStar.x * 0.45 * fa : 0),
-      pose.p[1] + (focusStar ? focusStar.y * 0.45 * fa : 0),
+      pose.p[0] + focusX * 0.45 * fa,
+      pose.p[1] + focusY * 0.45 * fa,
       pose.p[2],
     );
     tmp.sub(look).multiplyScalar(f.back).add(look);
@@ -194,7 +205,7 @@ export function createWorld(canvas, options = {}) {
     setUniform("uIntro", intro);
     setUniform("uDraw", draw);
     setUniform("uDim", clamp(state.dim, 0, 1));
-    setUniform("uFocus", target.collection);
+    setUniform("uFocus", focusIndex);
     setUniform("uFocusAmt", state.focus);
     setUniform("uHover", hover);
     setUniform("uAmount", state.nebula * smooth(0.05, 0.7, intro));

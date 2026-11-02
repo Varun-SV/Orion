@@ -1236,6 +1236,92 @@ html:not([data-motion="running"]) .shot-row img {
   transition: none;
 }
 
+/* short viewports, such as a phone held sideways: tighter type and a two-column collections view */
+@media (max-height: 560px) {
+  .pin {
+    padding: 54px var(--pad) 12px;
+  }
+  h1 {
+    font-size: min(7vw, 11vh);
+  }
+  h2 {
+    font-size: clamp(26px, 8vh, 40px);
+  }
+  .eyebrow {
+    margin-bottom: 10px;
+  }
+  .lede {
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .actions {
+    margin-top: 16px;
+    gap: 8px;
+  }
+  .button {
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+  .fine,
+  .facts {
+    display: none;
+  }
+  .scroll-cue {
+    display: none;
+  }
+  .chapter--landing .pin {
+    align-items: center;
+    padding-bottom: 12px;
+  }
+  .pin {
+    align-items: center;
+    padding-bottom: 12px;
+  }
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+    align-content: center;
+    gap: 24px;
+  }
+  .cover-stage {
+    order: 0;
+    gap: 6px;
+  }
+  .cover-frame {
+    width: min(120px, 32vh);
+  }
+  .cover-stage strong {
+    font-size: 16px;
+  }
+  .cover-stage figcaption .tag {
+    display: none;
+  }
+  .chapter--collections .lede {
+    display: none;
+  }
+  .collection-list {
+    grid-template-columns: 1fr 1fr;
+    margin-top: 10px;
+  }
+  .collection-list button {
+    padding: 5px 8px;
+    font-size: 13px;
+    grid-template-columns: 22px 1fr;
+  }
+  .collection-list .cstar {
+    display: none;
+  }
+  .path-card {
+    margin-top: 12px;
+    padding: 10px 14px;
+    gap: 4px;
+  }
+  .path-card code {
+    font-size: 12px;
+  }
+}
+
 /* footer */
 .site-footer {
   position: relative;
