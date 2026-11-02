@@ -70,7 +70,7 @@ export const docsManifest = [
     title: "Licences",
     source: "LICENSE",
     description: "Project license and third-party notices.",
-    supplementalHeading: "Font licences",
+    supplementalHeading: "Third-party licences",
     supplemental: [
       {
         title: "Newsreader",
@@ -83,6 +83,12 @@ export const docsManifest = [
         label: "IBM Plex Sans",
         source: "site/public/fonts/PLEX-LICENSE.txt",
         href: "/Orion/fonts/PLEX-LICENSE.txt",
+      },
+      {
+        title: "three.js",
+        label: "three.js",
+        source: "site/public/licenses/THREE-LICENSE.txt",
+        href: "/Orion/licenses/THREE-LICENSE.txt",
       },
     ],
   },
